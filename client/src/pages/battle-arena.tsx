@@ -115,7 +115,21 @@ export default function BattleArena() {
     startNewBattle,
     updateBattleState,
     submitRound,
+    createBattleError,
   } = useBattleState();
+
+  // Show error when battle creation fails
+  useEffect(() => {
+    if (createBattleError) {
+      console.error('🔴 Battle creation error:', createBattleError);
+      toast({
+        title: "Battle Creation Failed",
+        description: createBattleError.message,
+        variant: "destructive",
+      });
+      setShowCharacterSelector(true);
+    }
+  }, [createBattleError, toast]);
 
   // Get latest round scores for authentic user stats (zero mock data)
   const getLatestUserScores = () => {

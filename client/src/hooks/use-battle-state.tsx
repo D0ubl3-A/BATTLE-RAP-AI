@@ -34,12 +34,19 @@ export function useBattleState(battleId?: string) {
       styleIntensity?: number;
       voiceSpeed?: number;
     }) => {
+      console.log('🎯 Creating battle with data:', battleData);
       const res = await apiRequest("POST", "/api/battles", battleData);
-      return res.json();
+      const data = await res.json();
+      console.log('✅ Battle created:', data);
+      return data;
     },
     onSuccess: (data: Battle) => {
+      console.log('🎉 Battle mutation success, setting battle ID:', data.id);
       setCurrentBattleId(data.id);
       queryClient.invalidateQueries({ queryKey: ["/api/battles"] });
+    },
+    onError: (error: Error) => {
+      console.error('❌ Battle creation failed:', error.message);
     },
   });
 
@@ -174,8 +181,9 @@ export function useBattleState(battleId?: string) {
     updateBattleState,
     submitRound,
     
-    // Mutation states
+    // Mutation states and errors
     createBattle: createBattleMutation,
+    createBattleError: createBattleMutation.error,
     updateState: updateStateMutation,
     processBattleRound: processBattleRoundMutation,
   };

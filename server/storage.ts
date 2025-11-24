@@ -333,18 +333,28 @@ export class DatabaseStorage implements IStorage {
         // Decrement user's daily battles (except for Pro users)
         if (user.subscriptionTier !== "pro") {
           const updatedUser = await this.getUser(battleData.userId); // Get fresh user data after potential reset
-          if ((updatedUser?.battlesRemaining || 0) <= 0) {
-            throw new Error("No battles remaining");
+          
+          // Only decrement battles if user has subscription battles remaining
+          // If battlesRemaining is 0, the battle was paid with store credits (already deducted in routes.ts)
+          if ((updatedUser?.battlesRemaining || 0) > 0) {
+            await db
+              .update(users)
+              .set({
+                battlesRemaining: Math.max(0, (updatedUser?.battlesRemaining || 0) - 1),
+                totalBattles: (updatedUser?.totalBattles || 0) + 1,
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, battleData.userId));
+          } else {
+            // No subscription battles left - just increment total battles (credits were already deducted)
+            await db
+              .update(users)
+              .set({
+                totalBattles: (updatedUser?.totalBattles || 0) + 1,
+                updatedAt: new Date(),
+              })
+              .where(eq(users.id, battleData.userId));
           }
-
-          await db
-            .update(users)
-            .set({
-              battlesRemaining: Math.max(0, (updatedUser?.battlesRemaining || 0) - 1),
-              totalBattles: (updatedUser?.totalBattles || 0) + 1,
-              updatedAt: new Date(),
-            })
-            .where(eq(users.id, battleData.userId));
         } else {
           // Pro users - just increment total battles
           await db
