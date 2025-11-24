@@ -1775,13 +1775,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const BATTLE_COST = 100; // 100 credits per battle
       const canBattle = await storage.canUserStartBattle(userId);
 
+      // Check subscription battles first
       if (!canBattle) {
-        return res.status(403).json({ 
-          message: "Battle limit reached. Upgrade to Premium or Pro for more battles!",
-          upgrade: true 
-        });
+        // No subscription battles - check if user has credits
+        const currentCredit = parseFloat(user.storeCredit?.toString() || "0");
+        if (currentCredit < BATTLE_COST) {
+          return res.status(403).json({ 
+            message: `Insufficient credits. Battle costs ${BATTLE_COST} credits. Your balance: ${currentCredit.toFixed(0)} credits`,
+            upgrade: true,
+            insufficientCredits: true,
+            needed: BATTLE_COST,
+            balance: currentCredit
+          });
+        }
+        
+        // Deduct credits for battle
+        const newBalance = currentCredit - BATTLE_COST;
+        await storage.updateUser(userId, { storeCredit: newBalance.toString() });
+        console.log(`💳 Battle purchased with credits: ${userId} (-${BATTLE_COST} credits, balance: ${newBalance})`);
       }
 
       // SECURITY: Only include validated and sanitized parameters
