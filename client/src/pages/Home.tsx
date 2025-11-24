@@ -92,7 +92,7 @@ export default function Home() {
                   </span>
                 </div>
                 {subscriptionStatus?.tier === 'free' && (
-                  <Link href="/subscribe?tier=premium">
+                  <Link to="/subscribe?tier=premium">
                     <Button size="sm" className="glass-panel border-2 border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white hover-lift">
                       Upgrade
                     </Button>
@@ -200,7 +200,7 @@ export default function Home() {
                 Face off against AI opponents and test your skills
               </p>
               {subscriptionStatus?.canStartBattle ? (
-                <Link href="/battle">
+                <Link to="/battle">
                   <Button className="w-full gradient-primary-bg text-white hover-lift glow-pulse-magenta font-bold text-lg py-6">
                     Battle Now
                   </Button>
@@ -213,7 +213,7 @@ export default function Home() {
                   >
                     No Battles Left
                   </Button>
-                  <Link href="/subscribe?tier=premium">
+                  <Link to="/subscribe?tier=premium">
                     <Button className="w-full glass-panel border-2 border-purple-400 text-purple-400 hover:bg-purple-400 hover:text-white text-sm hover-lift">
                       Upgrade to Premium - $9.99/mo
                     </Button>
@@ -238,7 +238,7 @@ export default function Home() {
               <p className="text-gray-300 text-sm mb-4">
                 Compete in elimination brackets for ultimate glory
               </p>
-              <Link href="/tournaments">
+              <Link to="/tournaments">
                 <Button className="w-full glass-panel border-2 border-amber-400 text-amber-400 hover:bg-amber-400 hover:text-black font-semibold hover-lift glow-pulse-cyan" data-testid="button-tournament-mode">
                   Enter Tournament
                 </Button>
@@ -261,7 +261,7 @@ export default function Home() {
               <p className="text-gray-300 text-sm mb-4">
                 Manage your OpenAI & Groq API keys for enhanced voice quality
               </p>
-              <Link href="/settings">
+              <Link to="/settings">
                 <Button className="w-full glass-panel border-2 border-prism-cyan text-prism-cyan hover:bg-prism-cyan hover:text-black font-semibold hover-lift" data-testid="button-settings">
                   Configure Settings
                 </Button>
@@ -284,7 +284,7 @@ export default function Home() {
               <p className="text-gray-300 text-sm mb-4">
                 Manage your store credits and USDC balance
               </p>
-              <Link href="/wallet">
+              <Link to="/wallet">
                 <Button className="w-full glass-panel border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-black font-semibold hover-lift" data-testid="button-wallet">
                   View Wallet
                 </Button>
@@ -307,7 +307,7 @@ export default function Home() {
               <p className="text-gray-300 text-sm mb-4">
                 View your stats, achievements, and customize your account
               </p>
-              <Link href="/profile">
+              <Link to="/profile">
                 <Button className="w-full glass-panel border-2 border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-black font-semibold hover-lift" data-testid="button-profile">
                   Go to Profile
                 </Button>
