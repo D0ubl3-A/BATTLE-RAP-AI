@@ -170,17 +170,33 @@ export class GroqTTSService {
   // Test if the API key works
   async testConnection(): Promise<boolean> {
     try {
-      const response = await this.groq.audio.speech.create({
-        model: "playai-tts",
-        voice: "Fritz-PlayAI",
-        input: "Test connection",
-        response_format: 'wav'
-      });
-      
-      const buffer = Buffer.from(await response.arrayBuffer());
-      return buffer.length > 0;
-    } catch (error) {
-      console.error('Groq TTS test failed:', error);
+      // Try PlayAI TTS first (our preferred model)
+      try {
+        const response = await this.groq.audio.speech.create({
+          model: "playai-tts",
+          voice: "Fritz-PlayAI",
+          input: "Test connection",
+          response_format: 'wav'
+        });
+        
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return buffer.length > 0;
+      } catch (playAiError: any) {
+        // If playai-tts requires terms acceptance but API key is valid, still return true
+        if (playAiError?.error?.error?.code === 'model_terms_required') {
+          console.log('✅ Groq API key valid (playai-tts requires terms acceptance - can use other Groq services)');
+          return true;
+        }
+        // If it's a 401, the API key is invalid
+        if (playAiError?.status === 401) {
+          console.error('❌ Groq API key invalid (401 Unauthorized)');
+          return false;
+        }
+        // For other errors, re-throw to be caught by outer catch
+        throw playAiError;
+      }
+    } catch (error: any) {
+      console.error('Groq TTS test failed:', error?.message || error);
       return false;
     }
   }
