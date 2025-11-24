@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Mic, Trophy, Zap, Crown, TrendingUp, Settings } from "lucide-react";
+import { Mic, Trophy, Zap, Crown, TrendingUp, Settings, Wallet, User } from "lucide-react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 
@@ -183,7 +183,7 @@ export default function Home() {
         </div>
 
         {/* Quick Action Buttons - Neon Apex Design */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <motion.div
             className="glass-card rounded-lg p-6 overflow-hidden relative"
             initial={{ opacity: 0, scale: 0.95 }}
@@ -264,6 +264,52 @@ export default function Home() {
               <Link href="/settings">
                 <Button className="w-full glass-panel border-2 border-prism-cyan text-prism-cyan hover:bg-prism-cyan hover:text-black font-semibold hover-lift" data-testid="button-settings">
                   Configure Settings
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="glass-card rounded-lg p-6 overflow-hidden relative"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-emerald-600/20 pointer-events-none"></div>
+            <div className="relative z-10">
+              <h3 className="flex items-center gap-2 text-xl font-bold mb-2">
+                <Wallet className="h-6 w-6 text-green-400" />
+                <span className="text-white">My Wallet</span>
+              </h3>
+              <p className="text-gray-300 text-sm mb-4">
+                Manage your store credits and USDC balance
+              </p>
+              <Link href="/wallet">
+                <Button className="w-full glass-panel border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-black font-semibold hover-lift" data-testid="button-wallet">
+                  View Wallet
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="glass-card rounded-lg p-6 overflow-hidden relative"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.8 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-cyan-600/20 pointer-events-none"></div>
+            <div className="relative z-10">
+              <h3 className="flex items-center gap-2 text-xl font-bold mb-2">
+                <User className="h-6 w-6 text-blue-400" />
+                <span className="text-white">My Profile</span>
+              </h3>
+              <p className="text-gray-300 text-sm mb-4">
+                View your stats, achievements, and customize your account
+              </p>
+              <Link href="/profile">
+                <Button className="w-full glass-panel border-2 border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-black font-semibold hover-lift" data-testid="button-profile">
+                  Go to Profile
                 </Button>
               </Link>
             </div>
