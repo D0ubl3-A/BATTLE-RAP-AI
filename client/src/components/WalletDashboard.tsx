@@ -15,7 +15,7 @@ interface WalletData {
 }
 
 interface StoreCreditData {
-  balance: number;
+  balance: string;
 }
 
 interface Transaction {
@@ -202,7 +202,7 @@ export function WalletDashboard() {
             >
               <div className="text-sm text-prism-cyan mb-1">Available Credits</div>
               <div className="text-5xl font-orbitron font-bold text-prism-cyan mb-2 glow-pulse-cyan" data-testid="text-store-credits">
-                ${storeCredit.balance?.toFixed(2) || '0.00'}
+                ${parseFloat(storeCredit.balance || '0').toFixed(2)}
               </div>
               <p className="text-xs text-gray-400 mt-2">
                 🎤 Use credits to enter battles, train with AI, and unlock features
