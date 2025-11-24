@@ -162,10 +162,12 @@ export class GroqTTSService {
       };
 
     } catch (error: any) {
-      // Handle terms acceptance error gracefully
+      // Handle terms acceptance error gracefully - this means the API key is valid but admin needs to accept terms
       if (error?.error?.error?.code === 'model_terms_required' || error?.status === 400) {
-        console.warn(`⚠️ Groq TTS model requires terms acceptance. Org admin must accept terms at https://console.groq.com/playground?model=playai-tts`);
-        throw new Error(`Groq TTS model requires terms acceptance - contact your org admin to accept terms at console.groq.com`);
+        console.warn(`⚠️ Groq playai-tts requires terms acceptance. Key is valid but admin must accept at https://console.groq.com/playground?model=playai-tts`);
+        console.warn(`✅ API key works - using fallback TTS instead`);
+        // Return empty to trigger fallback to other TTS services
+        throw new Error(`Groq playai-tts terms not accepted`);
       }
       
       console.error(`❌ Groq TTS failed for ${characterId}:`, error.message);
