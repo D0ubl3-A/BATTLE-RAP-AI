@@ -3,12 +3,15 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { APIKeyManager } from '@/components/api-key-manager';
-import { Settings2, Mic, Key, Shield } from 'lucide-react';
+import { Settings2, Mic, Key, Shield, ArrowLeft } from 'lucide-react';
 import { SEO, generateWebPageStructuredData } from '@/components/SEO';
+import { Link } from 'wouter';
 const settingsImage = "/images/Audio_settings_interface_5e678558.png";
 
 export default function SettingsPage() {
+
   const structuredData = generateWebPageStructuredData(
     "Settings - Configure Your Battle Rap Experience",
     "Customize your rap battle settings, manage API keys for TTS services, and configure battle preferences.",
@@ -64,8 +67,16 @@ export default function SettingsPage() {
         {/* Header */}
         <motion.div
           variants={itemVariants}
-          className="glass-card neon-border-magenta p-8 text-center"
+          className="glass-card neon-border-magenta p-8"
         >
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/">
+              <a className="inline-flex items-center gap-2 px-4 py-2 rounded-md border-2 border-prism-cyan text-prism-cyan hover:bg-gradient-to-r hover:from-prism-cyan/20 hover:to-transparent transition-all duration-300 cursor-pointer hover-lift" data-testid="button-back-to-home">
+                <ArrowLeft className="w-4 h-4" />
+                Back to Home
+              </a>
+            </Link>
+          </div>
           <div className="flex items-center justify-center gap-4 mb-3">
             <motion.div
               animate={{ rotate: 360 }}
