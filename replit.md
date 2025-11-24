@@ -57,6 +57,20 @@ Technical Implementations:
   - Shows "Sound Effects Active" indicator during playback
   - Smooth animations with Framer Motion
 
+### ✅ API Key Testing & Groq TTS Fixes
+- **Fixed Groq API Key Test**: Now correctly identifies valid Groq keys even when `playai-tts` requires terms acceptance
+  - Test returns `true` for valid API keys (backward compatible)
+  - Better error messages for actual authentication failures (401)
+- **Improved Groq TTS Error Handling**: Graceful fallback when Groq TTS model needs terms acceptance
+  - Clear warning message with link to Groq console for admin action
+  - System automatically falls back to OpenAI/ElevenLabs/MyShell TTS
+  - Silent mode fallback ensures battles continue without audio
+- **How to Fix Groq TTS**: If Groq TTS fails with "model requires terms acceptance"
+  - Org admin must visit: https://console.groq.com/playground?model=playai-tts
+  - Accept the terms for the `playai-tts` model
+  - Restart the app - Groq TTS will work normally afterward
+- **"Back to Home" Button**: Added navigation button to settings page for easier UX
+
 ## Recent Changes (November 6, 2025)
 
 ### 🎨 Navigation & UI Accessibility Improvements
