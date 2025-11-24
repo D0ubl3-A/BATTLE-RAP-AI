@@ -2378,6 +2378,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // NOW generate AI response with user score context for reactive behavior
       console.log(`🤖 Generating AI response for: "${userText.substring(0, 30)}..."`);
 
+      // Get user's Groq API key if available
+      const userId = req.user.claims.sub;
+      const userFromDb = await storage.getUser(userId);
+      const userGroqKey = userFromDb?.groqApiKey || undefined;
+
       let aiResponseText = "System response ready!";
       try {
         // Ultra-aggressive timeout for instant response
@@ -2388,7 +2393,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             battle.profanityFilter,
             adjustedComplexity,
             adjustedIntensity,
-            userPerformanceScore // Pass user score for reactive AI
+            userPerformanceScore, // Pass user score for reactive AI
+            true, // enableInternalRhymes
+            userGroqKey // Pass user's Groq API key for rap generation
           ),
           new Promise<string>((_, reject) => 
             setTimeout(() => reject(new Error("AI timeout")), 5000) // Keep longer timeout for 120B model
@@ -2401,7 +2408,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // 3. Generate TTS using user's preferred service or system fallback
-      const userId = req.user.claims.sub;
       const characterId = battle.aiCharacterId || battle.aiCharacterName?.toLowerCase()?.replace('mc ', '').replace(' ', '_') || "venom";
       console.log(`🎤 Generating TTS for character: ${characterId} (user: ${userId})`);
 

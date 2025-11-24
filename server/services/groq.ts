@@ -324,18 +324,27 @@ OUTPUT: Technical brief for AI rapper in format: "User: [syllables/line], [schem
     lyricComplexity: number = 50,
     styleIntensity: number = 50,
     userScore: number = 50,
-    enableInternalRhymes: boolean = true
+    enableInternalRhymes: boolean = true,
+    userApiKey?: string
   ): Promise<string> {
-    if (!this.apiKey) {
+    // Use user's API key if provided, otherwise use system key
+    const effectiveApiKey = userApiKey || this.apiKey;
+    if (!effectiveApiKey) {
       throw new Error("Groq API key not available for rap generation");
     }
-    // SECURITY: Validate and sanitize user input
-    const validatedUserVerse = this.validateInput(userVerse, 5000);
-    const sanitizedUserVerse = this.sanitizeContent(validatedUserVerse);
     
-    // STAGE 1: ADVANCED RHYME ANALYSIS
-    console.log("🎯 Stage 1: Analyzing user's rhyme patterns...");
-    const rhymeAnalysis = await this.analyzeRhymePatterns(sanitizedUserVerse);
+    // Temporarily set the API key for this method execution
+    const originalApiKey = this.apiKey;
+    this.apiKey = effectiveApiKey;
+    
+    try {
+      // SECURITY: Validate and sanitize user input
+      const validatedUserVerse = this.validateInput(userVerse, 5000);
+      const sanitizedUserVerse = this.sanitizeContent(validatedUserVerse);
+      
+      // STAGE 1: ADVANCED RHYME ANALYSIS
+      console.log("🎯 Stage 1: Analyzing user's rhyme patterns...");
+      const rhymeAnalysis = await this.analyzeRhymePatterns(sanitizedUserVerse);
 
     // REACTIVE AI: Adjust aggression based on user performance
     let reactionMode = "standard";
@@ -981,6 +990,10 @@ ${difficulty === 'nightmare' ? '- CYPHER-9000 MODE: Cold robotic delivery with s
     }
 
     return responseContent;
+    } finally {
+      // Restore original API key after method execution
+      this.apiKey = originalApiKey;
+    }
   }
 
   /**
