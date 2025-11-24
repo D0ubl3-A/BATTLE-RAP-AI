@@ -27,6 +27,7 @@ interface SFXManagerHook {
     userPerformanceScore?: number;
   }) => void;
   playEndingEffect: (type?: 'victory' | 'defeat' | 'draw') => void;
+  playDialogueSFX: () => void;
   stopAllSFX: () => void;
   config: SFXConfig;
   updateConfig: (newConfig: Partial<SFXConfig>) => void;
@@ -117,6 +118,9 @@ export function useSFXManager(): SFXManagerHook {
         break;
       case 'ending-draw':
         audioUrl = '/api/sfx/air-horn';
+        break;
+      case 'dialogue-appear':
+        audioUrl = '/api/sfx/dialogue-appear';
         break;
       default:
         audioUrl = '/api/sfx/crowd-medium';
@@ -224,6 +228,23 @@ export function useSFXManager(): SFXManagerHook {
       oscillator2.start(ctx.currentTime);
       oscillator1.stop(ctx.currentTime + duration);
       oscillator2.stop(ctx.currentTime + duration);
+    } else if (type === 'dialogue-appear') {
+      // Subtle whoosh/pop for dialogue appearance
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.15);
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(volume * 0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.15);
     }
 
     // Reset playing state after duration
@@ -253,6 +274,14 @@ export function useSFXManager(): SFXManagerHook {
     console.log(`🏁 Playing ending effect: ${type}`);
     playAudioFile(`ending-${type}`, config.endingEffects.volume);
   }, [config.endingEffects, playAudioFile]);
+
+  const playDialogueSFX = useCallback(() => {
+    if (!config.crowdReactions.enabled) return;
+    
+    console.log(`💬 Playing dialogue effect`);
+    // Play a subtle "whoosh" or "pop" sound for dialogue appearance
+    playAudioFile('dialogue-appear', config.crowdReactions.volume * 0.5);
+  }, [config.crowdReactions, playAudioFile]);
 
   const stopAllSFX = useCallback(() => {
     console.log('🔇 Stopping all SFX');
@@ -438,6 +467,7 @@ export function useSFXManager(): SFXManagerHook {
     playCrowdReaction,
     playIntelligentCrowdReaction,
     playEndingEffect,
+    playDialogueSFX,
     stopAllSFX,
     config,
     updateConfig,

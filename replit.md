@@ -41,6 +41,22 @@ Technical Implementations:
 - **PostgreSQL**: Database for user, session, battle data, encrypted API key storage, Arc wallet addresses, and USDC transaction history.
 - **FFmpeg**: For audio and video processing capabilities.
 
+## Recent Changes (November 24, 2025)
+
+### ✨ New: Dialogue Panel with SFX
+- **Visual Dialogue Display**: Added DialoguePanel component to the battle arena
+  - User dialogue displays in red/pink gradient chat bubble (bottom right)
+  - AI dialogue displays in blue gradient chat bubble (top left)
+  - Typewriter effect for realistic dialogue appearance
+- **Sound Effects Integration**: Integrated SFX support for dialogue
+  - `playDialogueSFX()` function plays subtle whoosh/pop sound on dialogue appearance
+  - Configurable sound enable/disable toggle in dialogue panel header
+  - Web Audio API fallback for sound generation (200Hz → 80Hz frequency sweep)
+- **Live Updates**: Dialogue updates in real-time as transcription/AI response arrives
+  - Displays "Waiting for dialogue..." when no active dialogue
+  - Shows "Sound Effects Active" indicator during playback
+  - Smooth animations with Framer Motion
+
 ## Recent Changes (November 6, 2025)
 
 ### 🎨 Navigation & UI Accessibility Improvements

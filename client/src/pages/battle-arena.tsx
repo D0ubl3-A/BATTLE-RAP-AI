@@ -16,6 +16,7 @@ import { RecordingPanel } from "@/components/recording-panel";
 import { BattleAvatar } from "@/components/battle-avatar";
 import { BattleTextDisplay } from "@/components/battle-text-display";
 import { AudioControls } from "@/components/audio-controls";
+import { DialoguePanel } from "@/components/dialogue-panel";
 import { SimpleAnalyzer } from "@/components/simple-analyzer";
 import { formatDuration } from "@/lib/audio-utils";
 import { preventMobileOverscroll, applyMobileScrollClasses } from "@/lib/mobile-scroll-prevention";
@@ -143,6 +144,7 @@ export default function BattleArena() {
     playCrowdReaction,
     playIntelligentCrowdReaction,
     playEndingEffect,
+    playDialogueSFX,
     stopAllSFX,
     enableRealtimeCrowdReactions,
     triggerCrowdOnSpeech,
@@ -989,6 +991,21 @@ export default function BattleArena() {
                     setLiveTranscription("");
                     setAiResponse("");
                   }}
+                />
+              </motion.div>
+
+              {/* Dialogue Panel - Visual Dialogue with SFX */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <DialoguePanel
+                  userDialogue={liveTranscription}
+                  aiDialogue={aiResponse}
+                  isUserSpeaking={isTranscribing}
+                  isAISpeaking={battleState?.isAIResponding}
+                  onDialogueSFX={playDialogueSFX}
                 />
               </motion.div>
 
