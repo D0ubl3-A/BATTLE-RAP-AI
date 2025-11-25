@@ -25,6 +25,7 @@ import { xpService } from "./services/xpService";
 import { trainingService } from "./services/trainingService";
 import { trainingAgent } from "./services/training-agent";
 import { walletService } from "./services/walletService";
+import StreamingTTSService from "./services/streaming-tts";
 // using shared exported instance from services/matchmaking
 
 // Initialize Arc Blockchain Service
@@ -32,6 +33,16 @@ const arcBlockchainService = createArcBlockchainService();
 
 // Initialize AI Payment Agent for voice commands
 const aiPaymentAgent = createAIPaymentAgent(arcBlockchainService);
+
+// Initialize Streaming TTS Service for progressive audio playback
+const streamingTTSService = process.env.GROQ_API_KEY 
+  ? new StreamingTTSService(process.env.GROQ_API_KEY)
+  : null;
+if (streamingTTSService) {
+  console.log('🎵 Streaming TTS Service initialized');
+} else {
+  console.warn('⚠️ Streaming TTS Service disabled (no GROQ_API_KEY)');
+}
 
 // Initialize ElevenLabs SFX Service
 const sfxService = getElevenLabsSFXService();
@@ -2549,6 +2560,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Battle processing temporarily unavailable. Please try again.",
         processingTime 
       });
+    }
+  });
+
+  // Streaming Audio Endpoint - Generates audio chunks for progressive playback
+  app.post("/api/battles/:battleId/stream-audio", isAuthenticated, async (req: any, res) => {
+    const { text, characterId, battleId } = req.body;
+
+    try {
+      if (!streamingTTSService) {
+        console.warn('⚠️ Streaming TTS not available, using fallback');
+        // Fallback: generate single audio file
+        const battle = await storage.getBattle(battleId);
+        if (!battle) {
+          return res.status(404).json({ message: "Battle not found" });
+        }
+
+        const userId = req.user.claims.sub;
+        const audioResponse = await userTTSManager.generateTTS(text, userId, {
+          characterId,
+          characterName: `MC ${characterId}`,
+        });
+
+        return res.json({
+          chunks: [
+            {
+              phrase: text,
+              audioUrl: audioResponse.audioUrl,
+              index: 0,
+            }
+          ],
+          mode: 'fallback_single_file'
+        });
+      }
+
+      console.log(`🎵 Streaming TTS request: ${text.substring(0, 40)}... for character: ${characterId}`);
+
+      const chunks: Array<{ phrase: string; audioUrl: string; index: number }> = [];
+      let chunkIndex = 0;
+
+      // Use the streaming TTS generator
+      for await (const chunk of streamingTTSService.generateStreamingAudio(
+        text,
+        characterId,
+        { voice: 'alloy' }
+      )) {
+        chunks.push({
+          phrase: chunk.phrase,
+          audioUrl: chunk.audioUrl,
+          index: chunkIndex,
+        });
+        chunkIndex++;
+
+        // Log chunk generation progress
+        console.log(`✅ Streaming chunk ${chunkIndex}: ${chunk.audioUrl}`);
+      }
+
+      console.log(`🎉 Streaming TTS complete: ${chunks.length} chunks generated`);
+
+      res.json({
+        chunks,
+        mode: 'streaming',
+        characterId,
+        totalChunks: chunks.length,
+      });
+    } catch (error: any) {
+      console.error('❌ Streaming audio generation error:', error);
+      
+      // Fallback: try single audio generation
+      try {
+        const userId = req.user.claims.sub;
+        const audioResponse = await userTTSManager.generateTTS(text, userId, {
+          characterId,
+          characterName: `MC ${characterId}`,
+        });
+
+        res.json({
+          chunks: [
+            {
+              phrase: text,
+              audioUrl: audioResponse.audioUrl,
+              index: 0,
+            }
+          ],
+          mode: 'fallback_error'
+        });
+      } catch (fallbackError) {
+        console.error('❌ Fallback TTS also failed:', fallbackError);
+        res.status(500).json({
+          message: 'Audio generation failed',
+          error: error.message
+        });
+      }
     }
   });
 
