@@ -28,27 +28,38 @@ export function DialoguePanel({
 
   // Typewriter effect for user dialogue
   useEffect(() => {
-    if (userDialogue && userDialogue.trim() && isUserSpeaking) {
-      setUserCharIndex(0);
-      setDisplayedUserDialogue("");
-      
-      const interval = setInterval(() => {
-        setUserCharIndex((prev) => {
-          if (prev >= userDialogue.length) {
-            clearInterval(interval);
-            return prev;
-          }
-          setDisplayedUserDialogue(userDialogue.substring(0, prev + 1));
-          return prev + 1;
-        });
-      }, 20);
+    if (userDialogue && userDialogue.trim()) {
+      // Always show user dialogue if it exists, regardless of isUserSpeaking
+      if (isUserSpeaking || displayedUserDialogue === "") {
+        // Only trigger typewriter animation when user starts speaking or first time
+        setUserCharIndex(0);
+        setDisplayedUserDialogue("");
+        
+        const interval = setInterval(() => {
+          setUserCharIndex((prev) => {
+            if (prev >= userDialogue.length) {
+              clearInterval(interval);
+              return prev;
+            }
+            setDisplayedUserDialogue(userDialogue.substring(0, prev + 1));
+            return prev + 1;
+          });
+        }, 20);
 
-      // Play sound effect on start
-      if (soundEnabled && onDialogueSFX) {
-        onDialogueSFX();
+        // Play sound effect on start
+        if (soundEnabled && onDialogueSFX && isUserSpeaking) {
+          onDialogueSFX();
+        }
+
+        return () => clearInterval(interval);
+      } else {
+        // Keep showing the dialogue after speaking is done
+        setDisplayedUserDialogue(userDialogue);
       }
-
-      return () => clearInterval(interval);
+    } else {
+      // Clear dialogue if userDialogue becomes empty
+      setDisplayedUserDialogue("");
+      setUserCharIndex(0);
     }
   }, [userDialogue, isUserSpeaking, soundEnabled, onDialogueSFX]);
 
