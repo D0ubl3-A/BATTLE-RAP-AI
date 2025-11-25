@@ -11,6 +11,8 @@ import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap, Brain, Lightbu
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Navigation } from "@/components/navigation";
+import { StreamingAudioPlayer } from "@/components/streaming-audio-player";
+import { useStreamingAudio } from "@/hooks/use-streaming-audio";
 
 interface TrainingLesson {
   id: string;
@@ -95,6 +97,9 @@ export default function Training() {
   const [coachingFeedback, setCoachingFeedback] = useState<CoachingFeedback | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  
+  // Streaming audio for coach feedback
+  const { chunks, generateStreamingAudio } = useStreamingAudio();
 
   const coachingMutation = useMutation({
     mutationFn: async (response: string) => {
@@ -110,9 +115,23 @@ export default function Training() {
       if (!res.ok) throw new Error('Failed to get coaching');
       return res.json() as Promise<CoachingFeedback>;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setCoachingFeedback(data);
       setShowCoachingDialog(true);
+      
+      // Generate streaming audio for coach feedback
+      const feedbackText = `${data.encouragement} ${data.nextSteps}`;
+      if (feedbackText && feedbackText.length > 10) {
+        try {
+          // Create a dummy battle ID for the training coach audio
+          const trainingSessionId = `training_${Date.now()}`;
+          await generateStreamingAudio(feedbackText, 'coach', trainingSessionId);
+          console.log('🎵 Coach streaming audio generated');
+        } catch (error) {
+          console.warn('⚠️ Coach audio generation failed:', error);
+          // Continue without audio
+        }
+      }
     },
     onError: () => {
       toast({
@@ -688,6 +707,22 @@ export default function Training() {
                       ))}
                     </ul>
                   </div>
+
+                  {/* Streaming Audio Player - Coach Feedback */}
+                  {chunks.length > 0 && (
+                    <div className="glass-panel p-4 rounded-lg neon-border-magenta">
+                      <StreamingAudioPlayer
+                        chunks={chunks}
+                        characterName="Coach"
+                        onChunkPlay={(index) => {
+                          console.log(`🎵 Playing coach feedback chunk ${index}/${chunks.length}`);
+                        }}
+                        onAllChunksComplete={() => {
+                          console.log('✅ Coach feedback audio complete');
+                        }}
+                      />
+                    </div>
+                  )}
 
                   {/* Encouragement */}
                   <div className="glass-panel p-4 rounded-lg bg-gradient-to-r from-prism-cyan/10 to-neon-magenta/10 border border-prism-cyan/30">
