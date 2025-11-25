@@ -41,10 +41,8 @@ export function AgeGate({
 
   const verifyAgeMutation = useMutation({
     mutationFn: async (birthDate: string) => {
-      return apiRequest("/api/user/verify-age", {
-        method: "POST",
-        body: JSON.stringify({ birthDate }),
-      });
+      const response = await apiRequest("POST", "/api/user/verify-age", { birthDate });
+      return response.json();
     },
     onSuccess: (data) => {
       if (data.verified) {

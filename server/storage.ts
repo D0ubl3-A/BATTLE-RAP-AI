@@ -260,11 +260,6 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  async getAllUsers(): Promise<User[]> {
-    const allUsers = await db.select().from(users);
-    return allUsers;
-  }
-
   // Subscription management
   async updateUserSubscription(userId: string, subscriptionData: {
     stripeCustomerId?: string;

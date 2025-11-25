@@ -40,10 +40,8 @@ export default function SafetyCenter() {
   // Update spending limits mutation
   const updateLimitsMutation = useMutation({
     mutationFn: async (limits: { dailyLimit: string; perTxLimit: string }) => {
-      return apiRequest("/api/user/spending-limits", {
-        method: "POST",
-        body: JSON.stringify(limits),
-      });
+      const response = await apiRequest("POST", "/api/user/spending-limits", limits);
+      return response.json();
     },
     onSuccess: () => {
       toast({
@@ -64,10 +62,8 @@ export default function SafetyCenter() {
   // Update moderation preference
   const updateModerationMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      return apiRequest("/api/user/moderation-preference", {
-        method: "POST",
-        body: JSON.stringify({ moderationOptIn: enabled }),
-      });
+      const response = await apiRequest("POST", "/api/user/moderation-preference", { moderationOptIn: enabled });
+      return response.json();
     },
     onSuccess: () => {
       toast({

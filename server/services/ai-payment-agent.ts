@@ -131,6 +131,7 @@ export class AIPaymentAgent {
       
       // Execute actual blockchain transaction - deposit stake to platform
       const depositTx = await this.arcService.depositStake(
+        userId,
         walletAddress,
         amount,
         stakeBattle.id
