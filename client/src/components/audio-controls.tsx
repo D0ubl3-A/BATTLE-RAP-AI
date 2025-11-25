@@ -169,7 +169,7 @@ export function AudioControls({
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const isButtonDisabled = !audioUrl || audioError !== null;
+  const isButtonDisabled = !audioUrl || audioError !== null || !audioLoaded;
 
   return (
     <div className={`bg-battle-gray rounded-xl p-6 border border-gray-700 ${className}`}>
@@ -227,8 +227,11 @@ export function AudioControls({
               ? "bg-gray-600 cursor-not-allowed opacity-50"
               : "bg-gradient-to-r from-accent-red to-red-600 hover:from-red-500 hover:to-red-700 transition transform hover:scale-105"
           } w-16 h-16 rounded-full flex items-center justify-center`}
+          title={!audioUrl ? "No audio available" : !audioLoaded ? "Loading audio..." : audioError ? audioError : "Click to play"}
         >
-          {isPlaying ? (
+          {!audioLoaded && audioUrl && !audioError ? (
+            <span className="text-white text-xs font-bold">...</span>
+          ) : isPlaying ? (
             <Pause className="text-white" size={28} />
           ) : (
             <Play className="text-white ml-1" size={28} />
