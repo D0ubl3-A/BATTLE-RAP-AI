@@ -147,14 +147,16 @@ export class GroqTTSService {
       const buffer = Buffer.from(await response.arrayBuffer());
       fs.writeFileSync(outputPath, buffer);
 
-      console.log(`✅ Groq TTS success: ${buffer.length} bytes (140 chars/second speed)`);
+      console.log(`✅ Groq TTS success: ${buffer.length} bytes, saved to ${filename}`);
 
-      // Convert to base64 for immediate use
-      const base64Audio = buffer.toString('base64');
-      const audioUrl = `data:audio/wav;base64,${base64Audio}`;
+      // Return file URL instead of base64 (base64 is too large for browser)
+      const audioUrl = `/api/audio/${filename}`;
 
-      // Estimate duration (Groq is 10x faster than real-time)
-      const duration = Math.floor(cleanText.length / 15);
+      // Estimate duration based on text length (average speaking rate ~150 wpm)
+      const words = cleanText.split(/\s+/).length;
+      const duration = Math.max(2, Math.ceil((words / 150) * 60));
+
+      console.log(`🎵 Audio URL: ${audioUrl}, estimated duration: ${duration}s`);
 
       return {
         audioUrl,
