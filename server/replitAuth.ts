@@ -256,7 +256,9 @@ export async function setupAuth(app: Express) {
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   try {
-    if (!req.isAuthenticated()) {
+    // Handle cases where isAuthenticated might not be a function
+    const isAuth = typeof req.isAuthenticated === 'function' ? req.isAuthenticated() : !!req.user;
+    if (!isAuth) {
       console.log('User not authenticated via Passport');
       return res.status(401).json({ message: "Unauthorized" });
     }
