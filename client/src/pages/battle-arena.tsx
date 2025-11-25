@@ -15,8 +15,9 @@ import { useSFXManager } from "@/hooks/useSFXManager";
 import { RecordingPanel } from "@/components/recording-panel";
 import { BattleAvatar } from "@/components/battle-avatar";
 import { BattleTextDisplay } from "@/components/battle-text-display";
-import { AudioControls } from "@/components/audio-controls";
+import { StreamingAudioPlayer } from "@/components/streaming-audio-player";
 import { DialoguePanel } from "@/components/dialogue-panel";
+import { useStreamingAudio } from "@/hooks/use-streaming-audio";
 import { SimpleAnalyzer } from "@/components/simple-analyzer";
 import { formatDuration } from "@/lib/audio-utils";
 import { preventMobileOverscroll, applyMobileScrollClasses } from "@/lib/mobile-scroll-prevention";
@@ -56,6 +57,9 @@ export default function BattleArena() {
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showLyricBreakdown, setShowLyricBreakdown] = useState(false);
   const [currentAnalysisText, setCurrentAnalysisText] = useState("");
+
+  // Streaming audio hook for progressive playback
+  const { chunks, generateStreamingAudio } = useStreamingAudio();
 
   // Audio race condition prevention
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
@@ -399,7 +403,7 @@ export default function BattleArena() {
         console.log('🎵 Audio URL length:', result.audioUrl?.length || 0);
         console.log('🎵 Audio available:', !!result.audioUrl);
         
-        // Wait for AI text to finish typing before starting audio - with race condition protection
+        // Generate streaming audio immediately for progressive playback
         const textLength = result.aiResponse?.length || 0;
         const typingDelay = Math.min(textLength * 50, 3000); // 50ms per character, max 3 seconds
         
@@ -409,23 +413,21 @@ export default function BattleArena() {
         clearTypingTimer();
         
         // Set new timer with request ID verification
-        typingTimerRef.current = setTimeout(() => {
-          // ✅ RACE CONDITION PROTECTION - Only set audio if this is still the current request
-          if (currentRequestId === requestId) {
-            console.log('🎵 Text display complete - setting audio for request:', requestId);
-            console.log('🎵 AUDIO DEBUG: result.audioUrl:', result.audioUrl);
-            console.log('🎵 AUDIO DEBUG: audioUrl length:', result.audioUrl?.length || 0);
-            console.log('🎵 AUDIO DEBUG: audioUrl type:', typeof result.audioUrl);
-            console.log('🎵 AUDIO DEBUG: audioUrl valid:', result.audioUrl && result.audioUrl.length > 10);
-            setCurrentAiAudio(result.audioUrl);
-            console.log('🎵 AUDIO DEBUG: currentAiAudio state should now be set to:', result.audioUrl?.substring(0, 100));
+        typingTimerRef.current = setTimeout(async () => {
+          // ✅ RACE CONDITION PROTECTION - Only generate streaming audio if this is still the current request
+          if (currentRequestId === requestId && result.aiResponse && currentBattleId) {
+            console.log('🎵 Text display complete - generating streaming audio for request:', requestId);
+            
+            const characterId = selectedCharacter?.id || 'razor';
+            await generateStreamingAudio(result.aiResponse, characterId, currentBattleId);
+            console.log('✅ Streaming audio chunks generated');
           } else {
-            console.log('🚫 Ignoring stale audio for old request:', requestId, '(current:', currentRequestId, ')');
+            console.log('🚫 Ignoring stale audio generation for old request:', requestId, '(current:', currentRequestId, ')');
           }
           typingTimerRef.current = null;
         }, typingDelay);
         
-        // Audio playback is now handled by SimpleAudioPlayer with proper timing
+        // Audio playback is now handled by StreamingAudioPlayer with progressive playback
         
         toast({
           title: "Round Complete!",
@@ -1072,14 +1074,20 @@ export default function BattleArena() {
 
             {/* AI & Audio Controls Panel */}
             <div className="space-y-6">
-              {/* Audio Playback Controls */}
-              <AudioControls
-                audioUrl={currentAiAudio}
-                autoPlay={true}
-                onPlaybackChange={(isPlaying) => 
-                  updateBattleState({ isPlayingAudio: isPlaying })
-                }
-              />
+              {/* Streaming Audio Player - Progressive playback */}
+              {chunks.length > 0 && (
+                <StreamingAudioPlayer
+                  chunks={chunks}
+                  characterName={selectedCharacter?.displayName || 'MC Razor'}
+                  onChunkPlay={(index) => {
+                    console.log(`🎵 Playing chunk ${index}/${chunks.length}`);
+                  }}
+                  onAllChunksComplete={() => {
+                    console.log('✅ All audio chunks played');
+                    updateBattleState({ isPlayingAudio: false });
+                  }}
+                />
+              )}
 
               {/* Battle History - Neon Apex Design */}
               <motion.div

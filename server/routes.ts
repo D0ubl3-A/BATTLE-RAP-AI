@@ -1955,7 +1955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid service specified" });
       }
 
-      const isValid = await userTTSManager.testUserAPIKey(userId, service as 'openai' | 'groq' | 'elevenlabs' | 'myshell');
+      const isValid = await userTTSManager.testUserAPIKey(userId, 'groq');
       res.json({ valid: isValid });
     } catch (error) {
       console.error(`Error testing ${req.body.service} API key:`, error);

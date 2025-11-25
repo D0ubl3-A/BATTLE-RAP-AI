@@ -1,7 +1,4 @@
-import { createOpenAITTS, OpenAITTSService } from './openai-tts';
 import { createGroqTTS, GroqTTSService } from './groq-tts';
-import { createElevenLabsTTS, ElevenLabsTTSService } from './elevenlabs-tts';
-import { createMyShellTTS, MyShellTTSService } from './myshell-tts';
 import { storage } from '../storage';
 
 export interface TTSGenerationOptions {
@@ -13,38 +10,13 @@ export interface TTSGenerationOptions {
 }
 
 export class UserTTSManager {
-  private openaiInstances = new Map<string, OpenAITTSService>();
   private groqInstances = new Map<string, GroqTTSService>();
-  private elevenlabsInstances = new Map<string, ElevenLabsTTSService>();
-  private myshellInstances = new Map<string, MyShellTTSService>();
-
-  private getOpenAIInstance(apiKey: string): OpenAITTSService {
-    if (!this.openaiInstances.has(apiKey)) {
-      this.openaiInstances.set(apiKey, createOpenAITTS(apiKey));
-    }
-    return this.openaiInstances.get(apiKey)!;
-  }
 
   private getGroqInstance(apiKey: string): GroqTTSService {
     if (!this.groqInstances.has(apiKey)) {
       this.groqInstances.set(apiKey, createGroqTTS(apiKey));
     }
     return this.groqInstances.get(apiKey)!;
-  }
-
-  private getElevenLabsInstance(apiKey: string): ElevenLabsTTSService {
-    if (!this.elevenlabsInstances.has(apiKey)) {
-      this.elevenlabsInstances.set(apiKey, createElevenLabsTTS(apiKey));
-    }
-    return this.elevenlabsInstances.get(apiKey)!;
-  }
-
-  private getMyShellInstance(apiKey: string, voiceCloning: boolean = false): MyShellTTSService {
-    const key = `${apiKey}_${voiceCloning}`;
-    if (!this.myshellInstances.has(key)) {
-      this.myshellInstances.set(key, createMyShellTTS(apiKey, voiceCloning));
-    }
-    return this.myshellInstances.get(key)!;
   }
 
   async generateTTS(
@@ -154,29 +126,13 @@ export class UserTTSManager {
 
 
   // Test a user's API key
-  async testUserAPIKey(userId: string, service: 'openai' | 'groq' | 'elevenlabs' | 'myshell'): Promise<boolean> {
+  async testUserAPIKey(userId: string, service: 'groq'): Promise<boolean> {
     const user = await storage.getUser(userId);
     if (!user) return false;
 
     try {
-      if (service === 'openai' && user.openaiApiKey) {
-        const instance = this.getOpenAIInstance(user.openaiApiKey);
-        const result = await instance.generateTTS("Test", "test", {});
-        return result.audioUrl.length > 0;
-      }
-
       if (service === 'groq' && user.groqApiKey) {
         const instance = this.getGroqInstance(user.groqApiKey);
-        return await instance.testConnection();
-      }
-
-      if (service === 'elevenlabs' && user.elevenlabsApiKey) {
-        const instance = this.getElevenLabsInstance(user.elevenlabsApiKey);
-        return await instance.testConnection();
-      }
-
-      if (service === 'myshell' && process.env.MYSHELL_API_KEY) {
-        const instance = this.getMyShellInstance(process.env.MYSHELL_API_KEY, true);
         return await instance.testConnection();
       }
 
@@ -189,13 +145,9 @@ export class UserTTSManager {
 
   // Clear cached instances when keys change
   clearUserInstances(userId: string) {
-    // In a production system, you'd track which instances belong to which users
-    // For now, we'll clear all instances when any key changes
-    this.openaiInstances.clear();
+    // Clear Groq instances when keys change
     this.groqInstances.clear();
-    this.elevenlabsInstances.clear();
-    this.myshellInstances.clear();
-    console.log(`🧹 Cleared all TTS instances cache (OpenAI, Groq, ElevenLabs, MyShell)`);
+    console.log(`🧹 Cleared all TTS instances cache (Groq only)`);
   }
 }
 
