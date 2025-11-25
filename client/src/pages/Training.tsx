@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap } from "lucide-react";
+import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap, Brain, Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Navigation } from "@/components/navigation";
@@ -42,6 +42,15 @@ interface TrainingProgress {
     completed: number;
     total: number;
   }>;
+}
+
+interface CoachingFeedback {
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  specificTips: string[];
+  encouragement: string;
+  nextSteps: string;
 }
 
 const categoryInfo: Record<string, { title: string; description: string; icon: string }> = {
@@ -81,8 +90,38 @@ export default function Training() {
   const [selectedCategory, setSelectedCategory] = useState<string>("basics");
   const [selectedLesson, setSelectedLesson] = useState<TrainingLesson | null>(null);
   const [showLessonDialog, setShowLessonDialog] = useState(false);
+  const [showCoachingDialog, setShowCoachingDialog] = useState(false);
+  const [userResponse, setUserResponse] = useState("");
+  const [coachingFeedback, setCoachingFeedback] = useState<CoachingFeedback | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  const coachingMutation = useMutation({
+    mutationFn: async (response: string) => {
+      if (!selectedLesson) throw new Error('No lesson selected');
+      const res = await fetch('/api/training/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lessonId: selectedLesson.id,
+          userResponse: response
+        })
+      });
+      if (!res.ok) throw new Error('Failed to get coaching');
+      return res.json() as Promise<CoachingFeedback>;
+    },
+    onSuccess: (data) => {
+      setCoachingFeedback(data);
+      setShowCoachingDialog(true);
+    },
+    onError: () => {
+      toast({
+        title: "Coaching Error",
+        description: "Failed to get AI coaching. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
 
   const { data: lessons = [], isLoading: lessonsLoading } = useQuery<TrainingLesson[]>({
     queryKey: [`/api/training/lessons?category=${selectedCategory}`],
@@ -119,6 +158,18 @@ export default function Training() {
 
     setSelectedLesson(lesson);
     setShowLessonDialog(true);
+  };
+
+  const handleGetCoaching = async () => {
+    if (!userResponse.trim()) {
+      toast({
+        title: "Empty Response",
+        description: "Please enter your rap response first.",
+        variant: "destructive"
+      });
+      return;
+    }
+    coachingMutation.mutate(userResponse);
   };
 
   const handleStartPractice = () => {
@@ -487,10 +538,47 @@ export default function Training() {
                     </div>
                   </motion.div>
 
+                  {/* AI Coaching Section */}
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
+                    className="mt-6 glass-panel p-5 rounded-lg neon-border-cyan"
+                  >
+                    <div className="flex items-start gap-3 mb-4">
+                      <Brain className="h-6 w-6 text-prism-cyan mt-1 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h4 className="font-orbitron font-semibold text-lg text-neon-magenta">
+                          AI Coach
+                        </h4>
+                        <p className="text-sm text-gray-400 mt-1">
+                          Type your rap response and get instant AI coaching feedback
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <textarea
+                      value={userResponse}
+                      onChange={(e) => setUserResponse(e.target.value)}
+                      placeholder="Enter your rap response here and get AI coaching..."
+                      className="w-full h-24 bg-steel-gray border border-steel-gray rounded-lg p-3 text-white placeholder-gray-500 focus:outline-none focus:border-prism-cyan"
+                    />
+                    
+                    <Button
+                      onClick={handleGetCoaching}
+                      disabled={coachingMutation.isPending || !userResponse.trim()}
+                      className="w-full mt-3 bg-gradient-to-r from-prism-cyan to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-orbitron"
+                      size="sm"
+                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      {coachingMutation.isPending ? 'Getting Coaching...' : 'Get AI Coaching'}
+                    </Button>
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
                     className="flex gap-4 mt-8"
                   >
                     <Button
@@ -512,6 +600,126 @@ export default function Training() {
                   </motion.div>
                 </motion.div>
               )}
+            </DialogContent>
+          )}
+        </AnimatePresence>
+      </Dialog>
+
+      {/* Coaching Feedback Dialog */}
+      <Dialog open={showCoachingDialog} onOpenChange={setShowCoachingDialog}>
+        <AnimatePresence>
+          {showCoachingDialog && coachingFeedback && (
+            <DialogContent className="max-w-2xl glass-card neon-border-cyan">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3 text-2xl font-orbitron text-prism-cyan">
+                    <Brain className="h-6 w-6" />
+                    AI Coach Feedback
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 mt-6">
+                  {/* Score */}
+                  <div className="glass-panel p-4 rounded-lg neon-border-magenta">
+                    <div className="flex items-center justify-between">
+                      <span className="font-orbitron text-neon-magenta">Your Score</span>
+                      <div className="text-3xl font-bold text-gradient-text">
+                        {coachingFeedback.score}/100
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-steel-gray rounded-full mt-3 overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${coachingFeedback.score}%` }}
+                        transition={{ duration: 0.8, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-neon-magenta to-accent-red"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Strengths */}
+                  <div className="space-y-2">
+                    <h4 className="font-orbitron text-prism-cyan flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4" />
+                      Strengths
+                    </h4>
+                    <ul className="space-y-1">
+                      {coachingFeedback.strengths.map((strength, i) => (
+                        <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-green-400 mt-0.5">✓</span>
+                          {strength}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Improvements */}
+                  <div className="space-y-2">
+                    <h4 className="font-orbitron text-neon-magenta flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Areas to Improve
+                    </h4>
+                    <ul className="space-y-1">
+                      {coachingFeedback.improvements.map((improvement, i) => (
+                        <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-yellow-400 mt-0.5">→</span>
+                          {improvement}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Tips */}
+                  <div className="space-y-2">
+                    <h4 className="font-orbitron text-accent-blue flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Pro Tips
+                    </h4>
+                    <ul className="space-y-1">
+                      {coachingFeedback.specificTips.map((tip, i) => (
+                        <li key={i} className="text-sm text-gray-300 flex items-start gap-2">
+                          <span className="text-accent-blue mt-0.5">⚡</span>
+                          {tip}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Encouragement */}
+                  <div className="glass-panel p-4 rounded-lg bg-gradient-to-r from-prism-cyan/10 to-neon-magenta/10 border border-prism-cyan/30">
+                    <p className="text-sm text-gray-300 italic">
+                      💬 {coachingFeedback.encouragement}
+                    </p>
+                  </div>
+
+                  {/* Next Steps */}
+                  <div className="glass-panel p-4 rounded-lg neon-border-cyan">
+                    <p className="font-orbitron text-prism-cyan text-sm mb-2">Next Steps:</p>
+                    <p className="text-sm text-gray-300">{coachingFeedback.nextSteps}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    onClick={() => setShowCoachingDialog(false)}
+                    className="flex-1 gradient-primary-bg hover-lift text-white font-orbitron"
+                  >
+                    Got It!
+                  </Button>
+                  <Button
+                    onClick={handleGetCoaching}
+                    disabled={coachingMutation.isPending || !userResponse.trim()}
+                    variant="outline"
+                    className="glass-panel border-steel-gray hover-lift font-orbitron"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </motion.div>
             </DialogContent>
           )}
         </AnimatePresence>

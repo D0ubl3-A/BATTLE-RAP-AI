@@ -23,6 +23,7 @@ import { getElevenLabsSFXService } from "./services/elevenlabs-sfx";
 import { requireAgeVerification, requireToSAcceptance, checkJurisdiction } from './middleware/legal';
 import { xpService } from "./services/xpService";
 import { trainingService } from "./services/trainingService";
+import { trainingAgent } from "./services/training-agent";
 import { walletService } from "./services/walletService";
 // using shared exported instance from services/matchmaking
 
@@ -238,6 +239,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error fetching categories:', error);
       res.status(500).json({ error: 'Failed to fetch categories' });
+    }
+  });
+
+  // TRAINING AGENT - AI Coaching Endpoint
+  app.post('/api/training/coach', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { lessonId, userResponse } = req.body;
+
+      if (!lessonId || !userResponse) {
+        return res.status(400).json({ error: 'lessonId and userResponse are required' });
+      }
+
+      // Get the lesson details
+      const lesson = await trainingService.getLesson(userId, lessonId);
+      if (!lesson) {
+        return res.status(404).json({ error: 'Lesson not found' });
+      }
+
+      // Generate AI coaching
+      const feedback = await trainingAgent.generateCoaching(
+        {
+          title: lesson.title,
+          category: lesson.category,
+          content: lesson.content,
+          practicePrompt: lesson.practicePrompt || "Practice this lesson"
+        },
+        userResponse,
+        lesson.progress?.attempts ?? 1
+      );
+
+      console.log(`🎓 Training Agent coaching provided for ${lesson.title}: ${feedback.score}/100`);
+      res.json(feedback);
+    } catch (error: any) {
+      console.error('Error generating coaching:', error);
+      res.status(500).json({ error: 'Failed to generate coaching' });
     }
   });
 
