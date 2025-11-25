@@ -1074,11 +1074,12 @@ export default function BattleArena() {
 
             {/* AI & Audio Controls Panel */}
             <div className="space-y-6">
-              {/* Streaming Audio Player - Progressive playback */}
+              {/* Streaming Audio Player - Progressive playback with autoplay */}
               {chunks.length > 0 && (
                 <StreamingAudioPlayer
                   chunks={chunks}
                   characterName={selectedCharacter?.displayName || 'MC Razor'}
+                  autoplay={true}
                   onChunkPlay={(index) => {
                     console.log(`🎵 Playing chunk ${index}/${chunks.length}`);
                   }}

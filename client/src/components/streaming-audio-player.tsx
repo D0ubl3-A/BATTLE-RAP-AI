@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Play, Pause, Volume2, VolumeX, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -15,11 +15,13 @@ interface StreamingAudioPlayerProps {
   onChunkPlay?: (chunkIndex: number) => void;
   onAllChunksComplete?: () => void;
   className?: string;
+  autoplay?: boolean;
 }
 
 /**
  * Streaming Audio Player
  * Plays audio chunks sequentially and highlights words as they play
+ * Supports autoplay for immediate playback when chunks arrive
  */
 export function StreamingAudioPlayer({
   chunks,
@@ -27,6 +29,7 @@ export function StreamingAudioPlayer({
   onChunkPlay,
   onAllChunksComplete,
   className = "",
+  autoplay = false,
 }: StreamingAudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
@@ -35,50 +38,15 @@ export function StreamingAudioPlayer({
   const [audioError, setAudioError] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const chunkQueueRef = useRef<number[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
+  const hasAutoPlayedRef = useRef(false);
+  const isPlayingRef = useRef(false);
 
-  // Initialize audio element
-  useEffect(() => {
-    const audio = new Audio();
-    audio.preload = "auto";
-    audio.crossOrigin = "anonymous";
-    audio.volume = volume[0] / 100;
+  // Generate session ID from first chunk to track unique audio sessions
+  const currentSessionId = chunks.length > 0 ? chunks[0].audioUrl : null;
 
-    const handleEnded = () => {
-      // Move to next chunk
-      const nextIndex = currentChunkIndex + 1;
-
-      if (nextIndex < chunks.length) {
-        setCurrentChunkIndex(nextIndex);
-        playChunk(nextIndex);
-      } else {
-        // All chunks completed
-        setIsPlaying(false);
-        setCurrentChunkIndex(0);
-        onAllChunksComplete?.();
-      }
-    };
-
-    const handleError = (e: any) => {
-      console.error("❌ Streaming audio error:", e);
-      setAudioError(`Failed to load audio chunk ${currentChunkIndex}`);
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener("ended", handleEnded);
-    audio.addEventListener("error", handleError);
-
-    audioRef.current = audio;
-
-    return () => {
-      audio.pause();
-      audio.removeEventListener("ended", handleEnded);
-      audio.removeEventListener("error", handleError);
-    };
-  }, [chunks, currentChunkIndex, onAllChunksComplete]);
-
-  // Play a specific chunk
-  const playChunk = (index: number) => {
+  // Play a specific chunk - defined as callback to avoid stale closure issues
+  const playChunk = useCallback((index: number) => {
     if (!audioRef.current || !chunks[index]) return;
 
     const chunk = chunks[index];
@@ -89,10 +57,112 @@ export function StreamingAudioPlayer({
     audioRef.current.src = chunk.audioUrl;
     audioRef.current.play().catch((error) => {
       console.warn("⚠️ Streaming playback prevented:", error);
+      setIsPlaying(false);
+      isPlayingRef.current = false;
     });
 
     onChunkPlay?.(index);
-  };
+  }, [chunks, onChunkPlay]);
+
+  // Initialize audio element ONCE on mount
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
+    audio.volume = volume[0] / 100;
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = "";
+    };
+  }, []); // Only run on mount
+
+  // Handle audio ended event - advance to next chunk
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleEnded = () => {
+      const nextIndex = currentChunkIndex + 1;
+
+      if (nextIndex < chunks.length) {
+        setCurrentChunkIndex(nextIndex);
+        playChunk(nextIndex);
+      } else {
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        setCurrentChunkIndex(0);
+        onAllChunksComplete?.();
+      }
+    };
+
+    const handleError = (e: any) => {
+      console.error("❌ Streaming audio error:", e);
+      setAudioError(`Failed to load audio chunk ${currentChunkIndex}`);
+      setIsPlaying(false);
+      isPlayingRef.current = false;
+    };
+
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+    };
+  }, [currentChunkIndex, chunks.length, playChunk, onAllChunksComplete]);
+
+  // Update volume when changed
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+    }
+  }, [volume, isMuted]);
+
+  // Reset state when session changes (new audio)
+  useEffect(() => {
+    if (currentSessionId !== sessionIdRef.current) {
+      // New audio session - reset everything
+      if (sessionIdRef.current !== null) {
+        console.log('🔄 New audio session detected, resetting player');
+        setCurrentChunkIndex(0);
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+        hasAutoPlayedRef.current = false;
+        setAudioError(null);
+        
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+      }
+      sessionIdRef.current = currentSessionId;
+    }
+  }, [currentSessionId]);
+
+  // Autoplay effect - runs only once per session when first chunk arrives
+  useEffect(() => {
+    if (
+      autoplay &&
+      chunks.length > 0 &&
+      audioRef.current &&
+      currentSessionId === sessionIdRef.current &&
+      !hasAutoPlayedRef.current &&
+      !isPlayingRef.current
+    ) {
+      console.log('🎵 Autoplay: Starting audio playback for new session');
+      hasAutoPlayedRef.current = true;
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      setCurrentChunkIndex(0);
+      
+      // Small delay to ensure audio element is ready
+      setTimeout(() => {
+        playChunk(0);
+      }, 50);
+    }
+  }, [autoplay, chunks.length, currentSessionId, playChunk]);
 
   // Handle play/pause
   const handlePlayPause = () => {
@@ -101,26 +171,22 @@ export function StreamingAudioPlayer({
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      isPlayingRef.current = false;
     } else {
       playChunk(currentChunkIndex);
       setIsPlaying(true);
+      isPlayingRef.current = true;
     }
   };
 
   // Handle volume change
   const handleVolumeChange = (newVolume: number[]) => {
     setVolume(newVolume);
-    if (audioRef.current) {
-      audioRef.current.volume = newVolume[0] / 100;
-    }
   };
 
   // Handle mute
   const handleMute = () => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? volume[0] / 100 : 0;
-      setIsMuted(!isMuted);
-    }
+    setIsMuted(!isMuted);
   };
 
   if (chunks.length === 0) {
@@ -143,7 +209,7 @@ export function StreamingAudioPlayer({
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-prism-cyan animate-pulse" />
           <span className="text-sm font-semibold text-prism-cyan">
-            Streaming Audio {currentChunkIndex + 1}/{chunks.length}
+            {isPlaying ? "Now Playing" : "Streaming Audio"} {currentChunkIndex + 1}/{chunks.length}
           </span>
         </div>
         <span className="text-xs text-gray-400">{characterName}</span>
@@ -222,13 +288,13 @@ export function StreamingAudioPlayer({
           <motion.div
             key={index}
             className={`flex-1 h-1 rounded ${
-              index <= currentChunkIndex
+              index < currentChunkIndex
                 ? "bg-prism-cyan"
                 : index === currentChunkIndex
-                ? "bg-prism-magenta"
+                ? isPlaying ? "bg-prism-magenta" : "bg-prism-cyan/50"
                 : "bg-slate-700"
             }`}
-            animate={index === currentChunkIndex ? { opacity: [0.5, 1] } : {}}
+            animate={index === currentChunkIndex && isPlaying ? { opacity: [0.5, 1] } : {}}
             transition={{ duration: 0.5, repeat: Infinity }}
           />
         ))}

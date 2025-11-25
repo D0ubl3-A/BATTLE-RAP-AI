@@ -708,12 +708,13 @@ export default function Training() {
                     </ul>
                   </div>
 
-                  {/* Streaming Audio Player - Coach Feedback */}
+                  {/* Streaming Audio Player - Coach Feedback with autoplay */}
                   {chunks.length > 0 && (
                     <div className="glass-panel p-4 rounded-lg neon-border-magenta">
                       <StreamingAudioPlayer
                         chunks={chunks}
                         characterName="Coach"
+                        autoplay={true}
                         onChunkPlay={(index) => {
                           console.log(`🎵 Playing coach feedback chunk ${index}/${chunks.length}`);
                         }}
