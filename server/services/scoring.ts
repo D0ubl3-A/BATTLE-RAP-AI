@@ -369,6 +369,118 @@ export class ScoringService {
     
     return Math.min(15, score);
   }
+
+  private detectAlliteration(text: string): number {
+    // RAP FOUNDATIONAL TECHNIQUE - consecutive words with same starting sound
+    let score = 0;
+    const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    
+    for (let i = 0; i < words.length - 2; i++) {
+      const word1 = words[i].charAt(0);
+      const word2 = words[i + 1].charAt(0);
+      const word3 = words[i + 2].charAt(0);
+      
+      // 3+ words starting with same letter (strong alliteration)
+      if (word1 === word2 && word2 === word3) {
+        score += 5;
+      } else if (word1 === word2) {
+        // 2 consecutive words (basic alliteration)
+        score += 2;
+      }
+    }
+    
+    console.log(`🎵 Alliteration score: ${Math.min(20, score)}`);
+    return Math.min(20, score);
+  }
+
+  private detectBattleInsults(text: string): number {
+    // BATTLE RAP SPECIFIC - devastating insult patterns
+    let score = 0;
+    const lower = text.toLowerCase();
+    
+    // SKILL DEMOLITION patterns
+    const skillPatterns = [
+      /\b(can't|can not|unable|fail|weak|pathetic|trash|garbage|amateur|beginner|noob|clown|joke|fraud)\b/g,
+      /\b(spit|bars|flow|rhyme|skill|talent|game|bars|technique)\s+(weak|trash|bad|garbage|poor|mid|mediocre)\b/g,
+      /\b(you\s+ain't|you\s+can't|you\s+suck|you\s+trash|you\s+weak)\b/g
+    ];
+    
+    let skillInsults = 0;
+    skillPatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      skillInsults += matches.length;
+      score += matches.length * 3;
+    });
+    
+    // PERSONAL ATTACK patterns (your mama, your style, etc)
+    const personalPatterns = [
+      /\b(you're|your|yo)\s+(mama|mom|style|sound|look|face|weak|trash)\b/g,
+      /\b(soft|feminine|weak|coward|scared|chicken)\b/g
+    ];
+    
+    let personalAttacks = 0;
+    personalPatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      personalAttacks += matches.length;
+      score += matches.length * 2;
+    });
+    
+    // CAREER DESTRUCTION patterns
+    const careerPatterns = [
+      /\b(retire|quit|give up|finished|done|over|washed|has-been|falling|dying|dead)\b/g,
+      /\b(peak|prime|best day|better days)\s+(behind|past|over|gone)\b/g
+    ];
+    
+    let careerAttacks = 0;
+    careerPatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      careerAttacks += matches.length;
+      score += matches.length * 2;
+    });
+    
+    console.log(`⚔️ Battle insults: Skill ${skillInsults}, Personal ${personalAttacks}, Career ${careerAttacks}`);
+    return Math.min(25, score);
+  }
+
+  private detectAdvancedSoundTechniques(text: string): number {
+    // ASSONANCE, CONSONANCE, and other sound poetry techniques
+    let score = 0;
+    const lower = text.toLowerCase();
+    const words = lower.split(/\s+/).filter(w => w.length > 0);
+    
+    // ASSONANCE - repeated vowel sounds within words
+    const vowels = ['a', 'e', 'i', 'o', 'u'];
+    let assonanceCount = 0;
+    for (let i = 0; i < words.length - 1; i++) {
+      for (const vowel of vowels) {
+        if (words[i].includes(vowel) && words[i + 1].includes(vowel)) {
+          const count1 = (words[i].match(new RegExp(vowel, 'g')) || []).length;
+          const count2 = (words[i + 1].match(new RegExp(vowel, 'g')) || []).length;
+          if (count1 > 0 && count2 > 0) {
+            assonanceCount++;
+            score += 1;
+            break;
+          }
+        }
+      }
+    }
+    
+    // CONSONANCE - repeated consonant sounds
+    const consonants = ['s', 't', 'n', 'r', 'l', 'd', 'g', 'k', 'p', 'b', 'm'];
+    let consonanceCount = 0;
+    for (let i = 0; i < words.length - 1; i++) {
+      for (const consonant of consonants) {
+        if (words[i].includes(consonant) && words[i + 1].includes(consonant)) {
+          consonanceCount++;
+          score += 1;
+          break;
+        }
+      }
+    }
+    
+    console.log(`🎶 Sound techniques: Assonance ${assonanceCount}, Consonance ${consonanceCount}`);
+    return Math.min(15, score);
+  }
   
   private detectPunchlines(text: string): number {
     let score = 0;
