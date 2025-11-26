@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk';
+import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,13 +9,12 @@ export interface GroqTTSOptions {
 }
 
 export class GroqTTSService {
-  private groq: Groq;
+  private elevenLabsApiKey: string;
   private outputDir: string;
 
   constructor(options: GroqTTSOptions) {
-    this.groq = new Groq({
-      apiKey: options.apiKey,
-    });
+    // Use ElevenLabs API key from environment (Groq doesn't have TTS)
+    this.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || options.apiKey;
     
     this.outputDir = path.join(process.cwd(), 'temp_audio');
     if (!fs.existsSync(this.outputDir)) {
@@ -94,119 +93,126 @@ export class GroqTTSService {
       speedMultiplier?: number;
     } = {}
   ): Promise<{ audioUrl: string; duration: number }> {
-    console.log(`🎤 Groq TTS generating for ${characterId}: "${text.substring(0, 50)}..."`);
+    console.log(`🎤 ElevenLabs TTS generating for ${characterId}: "${text.substring(0, 50)}..."`);
     
     try {
+      if (!this.elevenLabsApiKey) {
+        throw new Error('No ElevenLabs API key available');
+      }
+
       const voice = this.getVoiceForCharacter(characterId, options.gender);
-      const voiceStyle = options.voiceStyle || 'confident';
-      
-      console.log(`🚀 Using Groq voice: ${voice} with style: ${voiceStyle}`);
       
       // Apply robot voice effects for CYPHER-9000
       const processedText = this.applyRobotVoiceEffects(text, characterId);
       
-      // Clean text for better TTS - keep robot FX markers for CYPHER-9000
+      // Clean text for better TTS
       const cleanText = characterId === 'cypher' 
-        ? processedText // Keep robot effects for CYPHER-9000
-            .replace(/\(.*?\)/g, '') // Remove parentheses and content
-            .replace(/\*.*?\*/g, '') // Remove emphasis markers only
-            .replace(/\s+/g, ' ')    // Normalize whitespace
+        ? processedText
+            .replace(/\(.*?\)/g, '')
+            .replace(/\*.*?\*/g, '')
+            .replace(/\s+/g, ' ')
             .trim()
         : processedText
-            .replace(/\[.*?\]/g, '') // Remove all style tags for other characters
-            .replace(/\(.*?\)/g, '') // Remove parentheses and content
-            .replace(/\*.*?\*/g, '') // Remove emphasis markers
-            .replace(/\s+/g, ' ')    // Normalize whitespace
+            .replace(/\[.*?\]/g, '')
+            .replace(/\(.*?\)/g, '')
+            .replace(/\*.*?\*/g, '')
+            .replace(/\s+/g, ' ')
             .trim();
 
-      // Use Groq's PlayAI TTS model (10x faster than real-time)
-      const ttsOptions: any = {
-        model: "playai-tts", // Fast PlayAI model from Groq
-        voice: voice,
-        input: cleanText,
-        response_format: 'wav',
-        speed: this.calculateDynamicSpeed(characterId, options.voiceStyle, options.speedMultiplier)  // Dynamic speed based on character and style
-      };
+      console.log(`🎤 Voice Settings for ${characterId}: ${voice}`);
 
-      // Log dynamic voice settings
-      console.log(`🎤 Voice Settings for ${characterId}:`);
-      console.log(`   - Voice: ${voice}`);
-      console.log(`   - Speed: ${ttsOptions.speed}x (${this.getSpeedDescription(ttsOptions.speed)})`);
-      console.log(`   - Style: ${voiceStyle}`);
-      if (characterId === 'cypher') {
-        console.log(`   - 🤖 CYPHER-9000: RAPID-FIRE TERMINATION PROTOCOL ACTIVE`);
-        console.log(`   - 🔊 Enhanced robotic modulation: 1.4x speed with digital effects`);
+      // Use ElevenLabs TTS API (actual working endpoint)
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${this.mapVoiceToElevenLabsId(voice)}`,
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': this.elevenLabsApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: cleanText,
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
       }
 
-      const response = await this.groq.audio.speech.create(ttsOptions);
-
+      const buffer = await response.buffer();
       const timestamp = Date.now();
-      const filename = `groq_tts_${characterId}_${timestamp}.wav`;
+      const filename = `elevenlabs_tts_${characterId}_${timestamp}.mp3`;
       const outputPath = path.join(this.outputDir, filename);
 
-      const buffer = Buffer.from(await response.arrayBuffer());
       fs.writeFileSync(outputPath, buffer);
+      console.log(`✅ ElevenLabs TTS success: ${buffer.length} bytes, saved to ${filename}`);
 
-      console.log(`✅ Groq TTS success: ${buffer.length} bytes, saved to ${filename}`);
-
-      // Return file URL instead of base64 (base64 is too large for browser)
       const audioUrl = `/api/audio/${filename}`;
-
-      // Estimate duration based on text length (average speaking rate ~150 wpm)
       const words = cleanText.split(/\s+/).length;
       const duration = Math.max(2, Math.ceil((words / 150) * 60));
 
       console.log(`🎵 Audio URL: ${audioUrl}, estimated duration: ${duration}s`);
 
-      return {
-        audioUrl,
-        duration
-      };
+      return { audioUrl, duration };
 
     } catch (error: any) {
-      // Handle terms acceptance error gracefully - this means the API key is valid but admin needs to accept terms
-      if (error?.error?.error?.code === 'model_terms_required' || error?.status === 400) {
-        console.warn(`⚠️ Groq playai-tts requires terms acceptance. Key is valid but admin must accept at https://console.groq.com/playground?model=playai-tts`);
-        console.warn(`✅ API key works - using fallback TTS instead`);
-        // Return empty to trigger fallback to other TTS services
-        throw new Error(`Groq playai-tts terms not accepted`);
-      }
-      
-      console.error(`❌ Groq TTS failed for ${characterId}:`, error.message);
-      throw new Error(`Groq TTS generation failed: ${error.message}`);
+      console.error(`❌ ElevenLabs TTS failed for ${characterId}:`, error.message);
+      throw new Error(`TTS generation failed: ${error.message}`);
     }
+  }
+
+  private mapVoiceToElevenLabsId(voice: string): string {
+    // Map character voices to ElevenLabs voice IDs
+    const voiceMap: Record<string, string> = {
+      'Fritz-PlayAI': '21m00Tcm4TlvDq8ikWAM',      // Zen (calm)
+      'Deedee-PlayAI': 'EXAVITQu4vr4xnSDxMaL',    // Chris (energetic)
+      'Thunder-PlayAI': 'g5CIjZEefAph4nQFvHAz',   // Gigi (confident)
+      'Basil-PlayAI': 'jBpfuIE2acCqe6DYd0OnJ',    // Bella (warm)
+      'Cillian-PlayAI': 'tAZz3TKpW9KVe1ijCHXw',   // Josh (serious)
+      'Calum-PlayAI': 'TxGEqnHWrfWFTfGW9XjX',     // Adam (neutral)
+    };
+    return voiceMap[voice] || '21m00Tcm4TlvDq8ikWAM'; // Default to Zen
   }
 
   // Test if the API key works
   async testConnection(): Promise<boolean> {
     try {
-      // Try PlayAI TTS first (our preferred model)
-      try {
-        const response = await this.groq.audio.speech.create({
-          model: "playai-tts",
-          voice: "Fritz-PlayAI",
-          input: "Test connection",
-          response_format: 'wav'
-        });
-        
-        const buffer = Buffer.from(await response.arrayBuffer());
-        return buffer.length > 0;
-      } catch (playAiError: any) {
-        // If playai-tts requires terms acceptance but API key is valid, still return true
-        if (playAiError?.error?.error?.code === 'model_terms_required') {
-          console.log('✅ Groq API key valid (playai-tts requires terms acceptance - can use other Groq services)');
-          return true;
+      if (!this.elevenLabsApiKey) {
+        console.error('❌ No ElevenLabs API key available');
+        return false;
+      }
+
+      const response = await fetch(
+        'https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM',
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': this.elevenLabsApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: 'Test',
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          }),
         }
-        // If it's a 401, the API key is invalid
-        if (playAiError?.status === 401) {
-          console.error('❌ Groq API key invalid (401 Unauthorized)');
-          return false;
-        }
-        // For other errors, re-throw to be caught by outer catch
-        throw playAiError;
+      );
+
+      if (response.ok) {
+        console.log('✅ ElevenLabs TTS API connection successful');
+        return true;
+      } else {
+        console.error(`❌ ElevenLabs API error: ${response.status}`);
+        return false;
       }
     } catch (error: any) {
-      console.error('Groq TTS test failed:', error?.message || error);
+      console.error('ElevenLabs TTS test failed:', error?.message || error);
       return false;
     }
   }
