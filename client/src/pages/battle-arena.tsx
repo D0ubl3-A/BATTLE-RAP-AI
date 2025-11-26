@@ -985,12 +985,28 @@ export default function BattleArena() {
                   character={selectedCharacter || undefined}
                 />
               </motion.div>
-              {/* DEBUG: Current Audio URL */}
-              <div className="text-xs text-gray-500 p-2 bg-gray-800 rounded">
-                <div>🎵 DEBUG - currentAiAudio: {currentAiAudio || 'null'}</div>
-                <div>🎵 DEBUG - audioUrl length: {currentAiAudio?.length || 0}</div>
-                <div>🎵 DEBUG - audioUrl valid: {currentAiAudio && currentAiAudio.length > 10 ? 'YES' : 'NO'}</div>
-              </div>
+
+              {/* Audio Playback - Groq TTS with Autoplay */}
+              {currentAiAudio && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gray-800 rounded-lg p-4"
+                >
+                  <audio
+                    key={currentAiAudio}
+                    src={currentAiAudio}
+                    autoPlay
+                    controls
+                    className="w-full"
+                    crossOrigin="anonymous"
+                    onPlay={() => console.log('🔊 AI audio playing')}
+                    onEnded={() => console.log('🔊 AI audio finished')}
+                    onError={(e) => console.error('🔊 Audio playback error:', e)}
+                  />
+                </motion.div>
+              )}
 
               {/* Battle Text Display - Neon Apex Design */}
               <motion.div
