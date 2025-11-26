@@ -35,43 +35,31 @@ export class CrowdReactionService {
       };
     }
 
-    // Use Groq AI for intelligent crowd reaction analysis
+    // Use Groq AI reasoning model for intelligent contextual analysis (NOT trigger words)
     try {
-      const prompt = `You are an expert battle rap crowd analyzer. Analyze these lyrics ONLY for SPECIFIC TRIGGER WORDS and phrases that would make a crowd react. DO NOT react to timing, length, or general performance - ONLY specific trigger words.
+      const prompt = `You are an expert battle rap crowd analyst. Analyze these lyrics contextually to decide if a crowd reaction should occur, based on ACTUAL QUALITY, IMPACT, and APPROPRIATENESS - NOT trigger words.
 
 LYRICS: "${lyrics}"
 
-TRIGGER WORD CATEGORIES (crowd reacts ONLY to these):
+EVALUATION CRITERIA (reason through each):
+1. Lyrical Quality: Does it have clever wordplay, multi-syllabic rhymes, or unexpected punchlines?
+2. Delivery Potential: Would a crowd be impressed by the EXECUTION and TIMING of this line?
+3. Contextual Impact: Does this line actually "hit" in a battle context, or is it generic/hollow?
+4. Emotional Weight: Does it build momentum, create tension, or deliver a genuine punch?
 
-🔥 DESTRUCTION WORDS (wild_cheering 80-95%):
-- kill, murder, destroy, demolish, wreck, finish, slay, slaughter, massacre, eliminate, annihilate, obliterate, devastate, erase, delete
+REACTION TYPES:
+- silence: Generic, weak, or forgettable (even with "fire" keyword) 
+- mild_approval: Decent attempt, shows some skill but nothing special
+- hype: Good wordplay, clever delivery, builds energy
+- wild_cheering: Genuinely devastating, clever double meanings, jaw-dropping execution potential
+- shocked_gasps: Unexpected twist, risky but effective, bold move
+- booing: Poor execution, cringe, or incomprehensible
 
-🏆 VICTORY WORDS (wild_cheering 75-90%):
-- mic drop, game over, checkmate, done deal, case closed, lights out, victory, winner, champion, conquered, dominated, owned
+IMPORTANT: A line with the word "fire" but weak lyrics = silence or mild_approval
+IMPORTANT: A simple two-word line with great potential = hype
+IMPORTANT: Reasoning > Keywords. Analyze the ACTUAL content quality.
 
-⚡ INTENSITY WORDS (hype 65-80%):
-- savage, brutal, ruthless, vicious, deadly, lethal, killer, beast, monster, demon, devil, nightmare, terror, horror
-
-🔥 HEAT WORDS (hype 60-75%):
-- fire, flames, burning, heat, blazing, inferno, torch, roast, hot, heated, steaming, smoking, sizzling, scorching
-
-👑 SUPERIORITY WORDS (hype 55-70%):
-- king, crown, throne, legend, god, boss, chief, master, elite, supreme, ultimate, best, greatest, unmatched
-
-⚔️ BATTLE WORDS (mild_approval 45-60%):
-- step to me, come at me, try me, test me, bring it, face me, challenge, next level, different league, schooling, amateur
-
-💀 PERSONAL ATTACK WORDS (shocked_gasps 50-75%):
-- your mama, your girl, your crew, your family, weak, trash, garbage, pathetic, terrible, awful, wack, basic, lame
-
-RULES:
-- NO reaction unless specific trigger words are present
-- Multiple trigger words = higher intensity
-- Single weak word = lower intensity
-- NO reactions for general rap content without triggers
-- Match exact words/phrases from categories above
-
-JSON ONLY: {"reactionType":"wild_cheering","intensity":85,"reasoning":"Found trigger words: fire, destroy","timing":"immediate"}`;
+Respond ONLY as JSON: {"reactionType":"","intensity":0-100,"reasoning":"why this reaction","timing":"immediate/delayed/buildup"}`;
 
       const response = await this.groqService.generateRapResponse(prompt);
 
@@ -110,19 +98,27 @@ JSON ONLY: {"reactionType":"wild_cheering","intensity":85,"reasoning":"Found tri
     } catch (error) {
       console.error('🤖 Groq crowd analysis failed - retrying with enhanced prompt:', (error as Error).message);
       
-      // RETRY WITH SIMPLER, MORE RELIABLE PROMPT
+      // RETRY WITH SIMPLIFIED REASONING PROMPT
       try {
-        const retryPrompt = `As a battle rap crowd expert, analyze this lyric:
+        const retryPrompt = `Battle rap crowd analyzer. Evaluate this lyric for CONTEXTUAL QUALITY (not keywords):
 
 "${lyrics}"
 
-Rate crowd reaction (0-100) and pick ONE type:
-- silence (0-20): weak, boring, or basic content with no impact (not worthy of the legends)
-- mild_approval (21-40): decent bars with some skill shown (beginner level)
-- hype (41-70): good wordplay, flow, or clever content (getting closer to legendary status)
-- wild_cheering (71-90): devastating punchlines, complex wordplay, or jaw-dropping skill (worthy of The Destroyer, The Reaper, or Thunderstrike level)
-- booing (0-30): terrible performance, cringe, or offensive content (insulting to the legends)
-- shocked_gasps (50-80): controversial, surprising, or unexpectedly clever content (Shadow or Ghost level surprise)
+Decide reaction based on:
+- Wordplay quality and cleverness
+- Delivery/execution potential  
+- Actual impact in battle context
+- Whether it "hits" or falls flat
+
+Pick ONE reaction type with 0-100 intensity:
+- silence: Forgettable, weak, no real impact
+- mild_approval: Basic attempt, some skill shown  
+- hype: Good wordplay, clever, builds energy
+- wild_cheering: Devastating, jaw-dropping, genuinely impressive
+- booing: Poor execution, cringe, incomprehensible
+- shocked_gasps: Unexpected twist, risky but effective
+
+JSON ONLY: {"reactionType":"","intensity":0,"reasoning":"","timing":"immediate"}
 
 Consider battle rap crowd psychology: they want skill, cleverness, aggression, and entertainment worthy of legendary battle rap personas.
 
