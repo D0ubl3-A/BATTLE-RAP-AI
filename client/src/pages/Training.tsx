@@ -90,6 +90,8 @@ const categoryInfo: Record<string, { title: string; description: string; icon: s
 };
 
 export default function Training() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [, setLocation] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string>("basics");
   const [selectedLesson, setSelectedLesson] = useState<TrainingLesson | null>(null);
   const [showLessonDialog, setShowLessonDialog] = useState(false);
@@ -97,8 +99,29 @@ export default function Training() {
   const [userResponse, setUserResponse] = useState("");
   const [coachingFeedback, setCoachingFeedback] = useState<CoachingFeedback | null>(null);
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
   
+  // Redirect if not authenticated
+  if (!authLoading && !user) {
+    setLocation('/');
+    return null;
+  }
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-dark via-secondary-dark to-primary-dark flex items-center justify-center">
+        <Navigation />
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="text-neon-magenta text-4xl"
+        >
+          🎤
+        </motion.div>
+      </div>
+    );
+  }
+
   // Streaming audio for coach feedback
   const { chunks, generateStreamingAudio } = useStreamingAudio();
 
@@ -111,7 +134,8 @@ export default function Training() {
         body: JSON.stringify({
           lessonId: selectedLesson.id,
           userResponse: response
-        })
+        }),
+        credentials: 'include'
       });
       if (!res.ok) throw new Error('Failed to get coaching');
       return res.json() as Promise<CoachingFeedback>;
