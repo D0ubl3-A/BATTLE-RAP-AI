@@ -153,15 +153,25 @@ export class ScoringService {
       Math.min(10, rhymeAnalysis.rhythmConsistency * 0.1) :
       this.analyzeRhythm(text);
     
-    // 9. ORIGINALITY enhanced with phonetic uniqueness (15 points max)
+    // 9. ALLITERATION - rap foundational technique (20 points max)
+    const alliterationScore = this.detectAlliteration(text);
+    
+    // 10. BATTLE INSULTS - skill demolition, personal attacks, career destruction (25 points max)
+    const battleInsultScore = this.detectBattleInsults(text);
+    
+    // 11. ADVANCED SOUND TECHNIQUES - assonance & consonance (15 points max)
+    const soundTechScore = this.detectAdvancedSoundTechniques(text);
+    
+    // 12. ORIGINALITY enhanced with phonetic uniqueness (15 points max)
     const originalityScore = this.calculateOriginality(text, rhymeAnalysis, isFinalScore);
     
     const totalScore = Math.round(
       vocabularyComplexity + phoneticallyEnhancedDiversity + wordplayScore + figurativeScore + 
-      punchlineScore + homonymScore + rhymeJugglingScore + rhythmScore + originalityScore
+      punchlineScore + homonymScore + rhymeJugglingScore + alliterationScore + 
+      battleInsultScore + soundTechScore + rhythmScore + originalityScore
     );
     
-    console.log(`🎭 Creativity breakdown: Vocab ${vocabularyComplexity}/20, Diversity ${phoneticallyEnhancedDiversity}/15, Wordplay ${wordplayScore}/40, Figurative ${figurativeScore}/15, Punchlines ${punchlineScore}/50, Homonyms ${homonymScore}/30, RhymeJuggling ${rhymeJugglingScore}/20, Rhythm ${rhythmScore}/10, Originality ${originalityScore}/15`);
+    console.log(`🎭 FULL BREAKDOWN: Vocab ${vocabularyComplexity}/20 | Diversity ${phoneticallyEnhancedDiversity}/15 | Wordplay ${wordplayScore}/40 | Figurative ${figurativeScore}/15 | Punchlines ${punchlineScore}/50 | Homonyms ${homonymScore}/30 | RhymeJuggling ${rhymeJugglingScore}/20 | Alliteration ${alliterationScore}/20 | BattleInsults ${battleInsultScore}/25 | SoundTechs ${soundTechScore}/15 | Rhythm ${rhythmScore}/10 | Originality ${originalityScore}/15 = TOTAL ${totalScore}/265`);
     
     return Math.min(100, totalScore + (isFinalScore ? 5 : 0)); // Bonus for final score processing
   }
