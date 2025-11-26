@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { Settings, Smile, Flame, Volume2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { Flame } from "lucide-react";
+import { motion } from "framer-motion";
 import { BattleCharacter } from "@shared/characters";
-import { AdvancedLipSync } from "./advanced-lip-sync";
 
 interface BattleAvatarProps {
   isAISpeaking: boolean;
@@ -36,10 +34,6 @@ export function BattleAvatar({
     tongueTip: 0,
     intensity: 0
   });
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
-  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
     // Update avatar emotion based on battle state
