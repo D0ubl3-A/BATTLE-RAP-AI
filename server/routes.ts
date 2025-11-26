@@ -2732,6 +2732,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Claim Arc USDC reward for battle win
+  app.post("/api/battles/:battleId/claim-arc-reward", isAuthenticated, async (req: any, res) => {
+    const battleId = req.params.battleId;
+    const userId = req.user.claims.sub;
+
+    try {
+      // SECURITY: Validate battle ID format (UUID)
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(battleId)) {
+        return res.status(400).json({ message: "Invalid battle ID format" });
+      }
+
+      console.log(`🏆 Claiming Arc reward for battle ${battleId.substring(0, 8)}... by user ${userId}`);
+
+      // Fetch the battle
+      const battle = await storage.getBattle(battleId);
+      if (!battle) {
+        return res.status(404).json({ message: "Battle not found" });
+      }
+
+      // Verify ownership
+      if (battle.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized - battle belongs to another user" });
+      }
+
+      // Check if user won the battle
+      if (battle.userScore <= battle.aiScore) {
+        return res.status(400).json({ 
+          message: "You did not win this battle. Only winners can claim rewards.",
+          userScore: battle.userScore,
+          aiScore: battle.aiScore
+        });
+      }
+
+      // Check if reward already claimed
+      if (battle.rewardTxHash) {
+        return res.status(400).json({ 
+          message: "Reward already claimed for this battle",
+          txHash: battle.rewardTxHash
+        });
+      }
+
+      // Get user's Arc wallet address
+      let walletAddress = await storage.getArcWalletAddress(userId);
+      
+      if (!walletAddress) {
+        console.log(`⛓️ Creating Arc wallet for user ${userId}...`);
+        walletAddress = await arcBlockchainService.createWallet(userId);
+        await storage.createArcWallet(userId, walletAddress);
+      }
+
+      console.log(`💰 User wallet: ${walletAddress.substring(0, 10)}...`);
+
+      // Award USDC for battle win
+      const arcResult = await arcBlockchainService.awardBattleWinUSDC(walletAddress, battleId);
+      
+      if (arcResult.status !== 'confirmed') {
+        console.error(`❌ Arc transfer failed: ${arcResult.status}`);
+        return res.status(500).json({ message: "Failed to process Arc reward transfer" });
+      }
+
+      // Record Arc transaction in database
+      await storage.recordArcTransaction({
+        userId,
+        battleId,
+        txHash: arcResult.txHash,
+        txType: 'battle_reward',
+        amountUSDC: "0.10", // Battle win reward amount
+        toAddress: walletAddress,
+        fromAddress: arcBlockchainService['platformWallet'] || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        status: 'confirmed',
+        blockNumber: arcResult.blockNumber,
+        confirmedAt: arcResult.confirmedAt,
+        metadata: {
+          battleScore: battle.userScore,
+          opponentScore: battle.aiScore,
+          difficulty: battle.difficulty,
+          aiCharacter: battle.aiCharacterName
+        }
+      });
+
+      // Update battle to mark reward as claimed
+      await storage.updateBattleRewardTxHash(battleId, arcResult.txHash);
+
+      // Update user's total earned USDC
+      const user = await storage.getUser(userId);
+      if (user) {
+        const currentEarned = parseFloat(user.totalEarnedUSDC?.toString() || '0');
+        await storage.updateUser(userId, { 
+          totalEarnedUSDC: (currentEarned + 0.10).toString() 
+        });
+      }
+
+      console.log(`✅ Arc reward claimed! TX: ${arcResult.txHash.substring(0, 20)}...`);
+
+      res.status(200).json({
+        success: true,
+        reward: {
+          amountUSDC: "0.10",
+          txHash: arcResult.txHash,
+          walletAddress,
+          blockNumber: arcResult.blockNumber,
+          confirmedAt: arcResult.confirmedAt,
+          gasUsedUSDC: arcResult.gasUsedUSDC
+        }
+      });
+
+    } catch (error: any) {
+      console.error(`❌ Error claiming Arc reward for battle ${battleId}:`, error);
+      res.status(500).json({ 
+        message: "Failed to claim Arc reward",
+        error: error.message 
+      });
+    }
+  });
+
   // Tournament leaderboard endpoint
   app.get('/api/tournaments/leaderboard', async (_req, res) => {
     try {
