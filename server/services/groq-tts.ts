@@ -130,19 +130,20 @@ export class GroqTTSService {
       console.log(`🎤 TTS for ${characterId} using voice ${voiceId}`);
 
       // Use ElevenLabs SDK (handles auth properly)
-      const audio = await this.elevenLabsClient.textToSpeech.convert(
+      const audioData = await this.elevenLabsClient.textToSpeech.convert(
         voiceId,
         {
           text: cleanText,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: {
+          modelId: 'eleven_turbo_v2_5',
+          voiceSettings: {
             stability: 0.5,
             similarity_boost: 0.75,
           },
         }
       );
 
-      const buffer = Buffer.from(audio);
+      // Convert Uint8Array to Buffer
+      const buffer = Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData);
       const timestamp = Date.now();
       const filename = `elevenlabs_tts_${characterId}_${timestamp}.mp3`;
       const outputPath = path.join(this.outputDir, filename);
@@ -183,16 +184,16 @@ export class GroqTTSService {
         return false;
       }
 
-      const audio = await this.elevenLabsClient.textToSpeech.convert(
+      const audioData = await this.elevenLabsClient.textToSpeech.convert(
         '21m00Tcm4TlvDq8ikWAM',
         {
           text: 'Test',
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          modelId: 'eleven_turbo_v2_5',
+          voiceSettings: { stability: 0.5, similarity_boost: 0.75 },
         }
       );
 
-      if (audio && Buffer.isBuffer(audio)) {
+      if (audioData) {
         console.log('✅ ElevenLabs TTS API connection successful');
         return true;
       } else {
