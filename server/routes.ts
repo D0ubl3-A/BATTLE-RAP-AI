@@ -26,6 +26,7 @@ import { trainingService } from "./services/trainingService";
 import { trainingAgent } from "./services/training-agent";
 import { walletService } from "./services/walletService";
 import StreamingTTSService from "./services/streaming-tts";
+import { adsService } from "./services/adsService";
 // using shared exported instance from services/matchmaking
 
 // Initialize Arc Blockchain Service
@@ -1843,6 +1844,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Deduct credits for battle
         const newBalance = currentCredit - BATTLE_COST;
         await storage.updateUser(userId, { storeCredit: newBalance.toString() });
+        
+        // Track battle spending toward ad revenue pool
+        adsService.trackBattleSpending(userId, BATTLE_COST);
+        
         console.log(`💳 Battle purchased with credits: ${userId} (-${BATTLE_COST} credits, balance: ${newBalance})`);
       }
 
@@ -4531,6 +4536,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error checking balances:', error);
       res.status(500).json({ error: 'Failed to check balances' });
+    }
+  });
+
+  // ===== ADS MONETIZATION ENDPOINTS =====
+  
+  // Get available ads for user
+  app.get('/api/ads', isAuthenticated, async (req: any, res) => {
+    try {
+      const ads = adsService.getAvailableAds();
+      res.json({ ads });
+    } catch (error: any) {
+      console.error('Error fetching ads:', error);
+      res.status(500).json({ error: 'Failed to fetch ads' });
+    }
+  });
+
+  // Track ad impression (user started watching ad)
+  app.post('/api/ads/impression', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { campaignId, completed } = req.body;
+
+      if (!campaignId) {
+        return res.status(400).json({ error: 'Campaign ID required' });
+      }
+
+      const impression = await adsService.trackImpression(userId, campaignId, completed || false);
+      res.json({ impression });
+    } catch (error: any) {
+      console.error('Error tracking ad impression:', error);
+      res.status(500).json({ error: 'Failed to track impression' });
+    }
+  });
+
+  // Claim reward for watching ad (adds credits back to user)
+  app.post('/api/ads/claim-reward', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { campaignId } = req.body;
+
+      if (!campaignId) {
+        return res.status(400).json({ error: 'Campaign ID required' });
+      }
+
+      // Callback to update user credits
+      const updateUserCallback = async (userId: string, credits: number) => {
+        const user = await storage.getUser(userId);
+        if (user) {
+          const currentCredit = parseFloat(user.storeCredit?.toString() || '0');
+          const newBalance = currentCredit + credits;
+          await storage.updateUser(userId, { storeCredit: newBalance.toString() });
+        }
+      };
+
+      const result = await adsService.claimAdReward(userId, campaignId, updateUserCallback);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Error claiming ad reward:', error);
+      res.status(400).json({ error: error.message || 'Failed to claim reward' });
+    }
+  });
+
+  // Get user's ad statistics
+  app.get('/api/ads/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const stats = adsService.getUserAdStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      console.error('Error fetching ad stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // Get overall ad revenue system stats (admin only)
+  app.get('/api/ads/revenue-stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || user.subscriptionTier !== 'pro') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const revenueStats = adsService.getRevenueStats();
+      res.json(revenueStats);
+    } catch (error: any) {
+      console.error('Error fetching revenue stats:', error);
+      res.status(500).json({ error: 'Failed to fetch revenue stats' });
     }
   });
 

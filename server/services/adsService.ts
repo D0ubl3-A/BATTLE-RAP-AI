@@ -1,5 +1,3 @@
-import { storage } from '../storage';
-
 export interface AdCampaign {
   id: string;
   title: string;
@@ -18,8 +16,15 @@ export interface AdImpression {
   rewardClaimed: boolean;
 }
 
+export interface AdRevenue {
+  totalSpent: number; // Total credits spent by users on battles
+  totalRewards: number; // Total credits given via ads
+  netProfit: number; // totalSpent - totalRewards (covers Arc rewards)
+}
+
 export class AdsService {
   private impressions: Map<string, AdImpression[]> = new Map();
+  private totalBattleSpending: number = 0; // Track all credits spent on battles
   
   // Sample ad campaigns (can be stored in DB)
   private campaigns: AdCampaign[] = [
@@ -60,6 +65,14 @@ export class AdsService {
   }
 
   /**
+   * Track battle spending (revenue source to pay for Arc rewards)
+   */
+  trackBattleSpending(userId: string, creditsCost: number): void {
+    this.totalBattleSpending += creditsCost;
+    console.log(`💳 Battle Revenue: +${creditsCost} credits (User: ${userId}, Total Pool: ${this.totalBattleSpending})`);
+  }
+
+  /**
    * Track ad impression
    */
   async trackImpression(userId: string, campaignId: string, completed: boolean): Promise<AdImpression> {
@@ -82,9 +95,9 @@ export class AdsService {
   }
 
   /**
-   * Claim reward for watching ad
+   * Claim reward for watching ad (funded by battle spending revenue)
    */
-  async claimAdReward(userId: string, campaignId: string): Promise<{ reward: number; message: string }> {
+  async claimAdReward(userId: string, campaignId: string, updateUserCallback: (userId: string, credits: number) => Promise<void>): Promise<{ reward: number; message: string }> {
     const campaign = this.campaigns.find(c => c.id === campaignId);
     if (!campaign) {
       throw new Error('Campaign not found');
@@ -100,6 +113,11 @@ export class AdsService {
       throw new Error('Ad not completed or already claimed');
     }
 
+    // Check if revenue pool has enough to cover reward
+    if (this.totalBattleSpending < campaign.rewardValue) {
+      throw new Error('Ad reward pool insufficient - not enough revenue from battles');
+    }
+
     // Mark impression as reward claimed
     const impression = userImpressions.find(
       imp => imp.campaignId === campaignId && imp.completed && !imp.rewardClaimed
@@ -108,21 +126,22 @@ export class AdsService {
       impression.rewardClaimed = true;
     }
 
-    // Award credits to user
-    await storage.updateUserCredits(userId, campaign.rewardValue);
+    // Deduct from revenue pool and award to user
+    this.totalBattleSpending -= campaign.rewardValue;
+    await updateUserCallback(userId, campaign.rewardValue);
 
-    console.log(`💰 Ad Reward Claimed: User ${userId} earned ${campaign.rewardValue} credits from ad ${campaignId}`);
+    console.log(`💰 Ad Reward Claimed: User ${userId} earned ${campaign.rewardValue} credits (Revenue pool: ${this.totalBattleSpending})`);
 
     return {
       reward: campaign.rewardValue,
-      message: `Earned ${campaign.rewardValue} credits from ad!`,
+      message: `Earned ${campaign.rewardValue} credits from ad! (Funded by battle spending)`,
     };
   }
 
   /**
-   * Calculate total ad revenue from completed campaigns
+   * Get total ad revenue system stats
    */
-  getTotalAdRevenue(): number {
+  getRevenueStats(): AdRevenue {
     let totalRewards = 0;
     this.impressions.forEach(userImpressions => {
       userImpressions.forEach(imp => {
@@ -134,7 +153,12 @@ export class AdsService {
         }
       });
     });
-    return totalRewards;
+
+    return {
+      totalSpent: this.totalBattleSpending + totalRewards,
+      totalRewards,
+      netProfit: this.totalBattleSpending,
+    };
   }
 
   /**
