@@ -46,6 +46,13 @@ shared/           - Shared types and schemas
 - `/challenges` - Daily challenges
 - `/matchmaking` - PvP queue
 
+## Matchmaking System
+- **Random AI Battles**: Auto-matches with skill-scaled AI opponents (easy→nightmare)
+- **PvP Queue**: Real player matchmaking with AI fallback when queue empty
+- **AI Opponents**: 6 characters (Razor, Venom, Silk, CYPHER-9000, Inferno, Phoenix)
+- **Skill-Based**: AI difficulty auto-adjusts based on user win rate + average score
+- **No Wait Time**: Instant matches available 24/7 via AI fallback
+
 ## Environment
 - `GROQ_API_KEY` - Required for transcription and TTS
 - `ELEVENLABS_API_KEY` - Required for sound effects
@@ -56,7 +63,10 @@ shared/           - Shared types and schemas
 - SFX: Programmatic WAV fallback generation (ElevenLabs SDK lacks sound generation API)
 - Audio playback uses window.open() for cross-browser compatibility
 
-## Recent Fixes (Nov 2025)
+## Recent Fixes & Features (Nov 2025)
+- **Scoring System Overhaul**: Strict grading system that recognizes idioms, double/triple entendres, homonyms, and heavy rhyme juggling
+- **Ads Monetization**: Battle credits fund ad reward pool (100 credits/battle → users earn 25-75 credits per ad watched)
+- **Random Matchmaking**: Skill-based AI opponents instantly available when no players queue (6 difficulty levels)
 - Battle history query optimized (excludes heavy JSONB rounds data to prevent 507 errors)
 - BattleAvatar simplified (removed unused lip sync states)
 - Removed unused StreamingAudioPlayer from battle-arena.tsx
