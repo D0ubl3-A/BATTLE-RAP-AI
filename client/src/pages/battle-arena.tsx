@@ -260,15 +260,11 @@ export default function BattleArena() {
     }
   }, [currentBattleId, showCharacterSelector, selectedCharacter]);
 
-  // Auto-click play button when audio is ready
-  const playButtonRef = useRef<HTMLButtonElement>(null);
+  // Track currentAiAudio state changes for debugging
   useEffect(() => {
-    if (currentAiAudio && playButtonRef.current) {
-      console.log('🎵 AUTO-PRESSING PLAY BUTTON for AI verse');
-      setTimeout(() => {
-        playButtonRef.current?.click();
-      }, 500);
-    }
+    console.log('🎵 AUDIO DEBUG: currentAiAudio state changed to:', currentAiAudio);
+    console.log('🎵 AUDIO DEBUG: currentAiAudio length:', currentAiAudio?.length || 0);
+    console.log('🎵 AUDIO DEBUG: currentAiAudio is valid URL:', currentAiAudio && currentAiAudio.startsWith('/') && currentAiAudio.length > 10);
   }, [currentAiAudio]);
 
   // Cleanup on component unmount - prevent memory leaks and race conditions
@@ -996,7 +992,7 @@ export default function BattleArena() {
                 />
               </motion.div>
 
-              {/* Audio Playback - Play Button with Auto-Press */}
+              {/* Audio Playback - Inline Player */}
               {currentAiAudio && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -1004,9 +1000,8 @@ export default function BattleArena() {
                   transition={{ duration: 0.3 }}
                 >
                   <Button
-                    ref={playButtonRef}
                     onClick={() => {
-                      console.log('🔊 Playing audio: ' + currentAiAudio);
+                      console.log('🔊 Playing audio inline: ' + currentAiAudio);
                       updateBattleState({ isPlayingAudio: true });
                       if (audioRef.current) {
                         audioRef.current.src = currentAiAudio;
