@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap, Brain, Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
 import { Navigation } from "@/components/navigation";
 import { StreamingAudioPlayer } from "@/components/streaming-audio-player";
 import { useStreamingAudio } from "@/hooks/use-streaming-audio";
