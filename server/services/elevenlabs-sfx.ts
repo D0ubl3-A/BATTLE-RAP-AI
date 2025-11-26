@@ -106,33 +106,154 @@ export class ElevenLabsSFXService {
   }
 
   private generateFallbackSound(soundType: SoundType): Buffer {
-    // Generate a simple WAV file with Web Audio API simulation
-    // This is a minimal MP3-like buffer for fallback
-    // In production, you might want to use a proper audio generation library
+    console.log(`🎨 Generating audio for: ${soundType}`);
     
-    console.log(`🎨 Generating programmatic fallback for: ${soundType}`);
+    const sampleRate = 44100;
+    const duration = this.getSoundConfig(soundType).duration || 2;
+    const samples = sampleRate * duration;
     
-    // Create a simple audio buffer (placeholder)
-    // In a real scenario, you'd use something like node-wav or generate actual audio
-    const header = Buffer.from([
-      0x52, 0x49, 0x46, 0x46, // "RIFF"
-      0x24, 0x00, 0x00, 0x00, // File size
-      0x57, 0x41, 0x56, 0x45, // "WAVE"
-      0x66, 0x6D, 0x74, 0x20, // "fmt "
-      0x10, 0x00, 0x00, 0x00, // fmt chunk size
-      0x01, 0x00,             // Audio format (PCM)
-      0x01, 0x00,             // Number of channels
-      0x44, 0xAC, 0x00, 0x00, // Sample rate (44100)
-      0x88, 0x58, 0x01, 0x00, // Byte rate
-      0x02, 0x00,             // Block align
-      0x10, 0x00,             // Bits per sample
-      0x64, 0x61, 0x74, 0x61, // "data"
-      0x00, 0x00, 0x00, 0x00  // Data size
-    ]);
+    // Generate audio based on sound type
+    const audioData = this.generateAudioData(soundType, sampleRate, samples);
+    
+    // Create WAV file with actual audio data
+    return this.createWavFile(audioData, sampleRate);
+  }
 
-    // For now, return minimal valid audio buffer
-    // The frontend will handle this gracefully
-    return header;
+  private generateAudioData(soundType: SoundType, sampleRate: number, samples: number): Int16Array {
+    const audioData = new Int16Array(samples);
+    
+    switch (soundType) {
+      case 'boxing-bell':
+        this.generateBell(audioData, sampleRate, 1000, samples); // 1000 Hz bell tone
+        break;
+      case 'crowd-mild':
+        this.generateNoise(audioData, 0.2, samples); // Quiet noise for applause
+        break;
+      case 'crowd-medium':
+        this.generateNoise(audioData, 0.4, samples); // Medium noise with chirp
+        break;
+      case 'crowd-wild':
+        this.generateNoise(audioData, 0.7, samples); // Loud noise
+        this.addChirp(audioData, sampleRate, 200, 400, samples);
+        break;
+      case 'crowd-boo':
+        this.generateTone(audioData, sampleRate, 150, samples, 0.3); // Low tone with noise
+        break;
+      case 'crowd-gasp':
+        this.generateChirp(audioData, sampleRate, 800, 200, samples, 0.15);
+        break;
+      case 'air-horn':
+        this.generateChirp(audioData, sampleRate, 600, 1200, samples, 0.8);
+        break;
+      case 'victory-fanfare':
+        this.generateFanfare(audioData, sampleRate, samples);
+        break;
+    }
+    
+    return audioData;
+  }
+
+  private generateBell(data: Int16Array, sampleRate: number, frequency: number, samples: number) {
+    for (let i = 0; i < samples; i++) {
+      const t = i / sampleRate;
+      // Bell sound: decaying sine wave
+      const decay = Math.exp(-t * 2);
+      const value = Math.sin(2 * Math.PI * frequency * t) * decay;
+      data[i] = Math.max(-32768, Math.min(32767, value * 30000));
+    }
+  }
+
+  private generateNoise(data: Int16Array, amplitude: number, samples: number) {
+    for (let i = 0; i < samples; i++) {
+      data[i] = (Math.random() - 0.5) * 2 * 32767 * amplitude;
+    }
+  }
+
+  private generateTone(data: Int16Array, sampleRate: number, frequency: number, samples: number, amplitude: number) {
+    for (let i = 0; i < samples; i++) {
+      const t = i / sampleRate;
+      const decay = Math.exp(-t * 1);
+      const value = Math.sin(2 * Math.PI * frequency * t) * decay;
+      data[i] = Math.max(-32768, Math.min(32767, value * 32767 * amplitude));
+    }
+  }
+
+  private generateChirp(data: Int16Array, sampleRate: number, startFreq: number, endFreq: number, samples: number, amplitude: number) {
+    for (let i = 0; i < samples; i++) {
+      const t = i / sampleRate;
+      const freq = startFreq + (endFreq - startFreq) * (i / samples);
+      const phase = 2 * Math.PI * freq * t;
+      const value = Math.sin(phase);
+      data[i] = Math.max(-32768, Math.min(32767, value * 32767 * amplitude));
+    }
+  }
+
+  private addChirp(data: Int16Array, sampleRate: number, startFreq: number, endFreq: number, samples: number) {
+    for (let i = 0; i < samples; i++) {
+      const t = i / sampleRate;
+      const freq = startFreq + (endFreq - startFreq) * (i / samples);
+      const phase = 2 * Math.PI * freq * t;
+      const chirp = Math.sin(phase) * 0.3;
+      const current = data[i] / 32767;
+      const mixed = (current + chirp) * 0.5;
+      data[i] = Math.max(-32768, Math.min(32767, mixed * 32767));
+    }
+  }
+
+  private generateFanfare(data: Int16Array, sampleRate: number, samples: number) {
+    // Generate a simple fanfare: C-E-G chord with increasing pitch
+    const duration = samples / sampleRate;
+    const noteLength = duration / 3;
+    const samplesPerNote = noteLength * sampleRate;
+
+    const notes = [262, 330, 392]; // C, E, G frequencies
+    
+    for (let i = 0; i < samples; i++) {
+      const noteIndex = Math.floor((i / samplesPerNote) % 3);
+      const frequency = notes[noteIndex];
+      const t = (i % samplesPerNote) / sampleRate;
+      const decay = Math.exp(-t * 1);
+      const value = Math.sin(2 * Math.PI * frequency * t) * decay;
+      data[i] = Math.max(-32768, Math.min(32767, value * 25000));
+    }
+  }
+
+  private createWavFile(audioData: Int16Array, sampleRate: number): Buffer {
+    const channels = 1;
+    const bytesPerSample = 2;
+    const dataSize = audioData.length * channels * bytesPerSample;
+    const fileSize = 36 + dataSize;
+
+    const buffer = Buffer.alloc(44 + dataSize);
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
+
+    // RIFF header
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, fileSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * channels * bytesPerSample, true);
+    view.setUint16(32, channels * bytesPerSample, true);
+    view.setUint16(34, 16, true);
+
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Copy audio data
+    const audioBuffer = new Uint8Array(buffer.buffer, buffer.byteOffset + 44, dataSize);
+    audioBuffer.set(new Uint8Array(audioData.buffer));
+
+    return buffer;
   }
 
   async preGenerateAllSounds(): Promise<{ sounds: SoundType[]; totalSize: number }> {
