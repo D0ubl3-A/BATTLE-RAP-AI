@@ -31,6 +31,10 @@ import ChallengesPage from "@/pages/challenges";
 import MatchmakingPage from "@/pages/matchmaking";
 import NotFound from "@/pages/not-found";
 import AdminPage from "@/pages/admin";
+import BlogIndex from "@/pages/blog/index";
+import RedBullBatalla from "@/pages/blog/red-bull-batalla-2025";
+import URLSummerMadness from "@/pages/blog/url-summer-madness";
+import RisingStars from "@/pages/blog/rising-stars";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -51,6 +55,10 @@ function Router() {
   return (
     <Switch>
       {/* Public routes - accessible to everyone */}
+      <Route path="/blog" component={BlogIndex} />
+      <Route path="/blog/red-bull-batalla-2025" component={RedBullBatalla} />
+      <Route path="/blog/url-summer-madness" component={URLSummerMadness} />
+      <Route path="/blog/rising-stars" component={RisingStars} />
       <Route path="/tournaments/leaderboard" component={TournamentLeaderboard} />
       
       {/* Main routes - conditional based on auth */}
