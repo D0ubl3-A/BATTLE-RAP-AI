@@ -8,7 +8,6 @@ import { AdvancedLipSync } from "./advanced-lip-sync";
 interface BattleAvatarProps {
   isAISpeaking: boolean;
   battleState?: "idle" | "battle" | "mad" | "victory" | "defeat";
-  audioUrl?: string;
   className?: string;
   character?: BattleCharacter;
 }
@@ -24,7 +23,6 @@ interface LipSyncData {
 export function BattleAvatar({ 
   isAISpeaking, 
   battleState = "idle",
-  audioUrl,
   className = "",
   character
 }: BattleAvatarProps) {
@@ -148,26 +146,7 @@ export function BattleAvatar({
             </div>
           )}
 
-          {/* Real Avatar Lip Sync Component - Provides data only, no audio playback */}
-          {character?.avatar && audioUrl && (
-            <AdvancedLipSync
-              audioUrl={audioUrl}
-              isPlaying={isAISpeaking}
-              avatarImageUrl={`/attached_assets/generated_images/${character.avatar}`}
-              onLipSyncData={(data) => {
-                setLipSyncData(data);
-                // Update legacy mouth shapes for fallback
-                if (data.mouthOpenness > 0.7) setMouthShape("large");
-                else if (data.mouthOpenness > 0.4) setMouthShape("medium");
-                else if (data.mouthOpenness > 0.1) setMouthShape("small");
-                else setMouthShape("closed");
-                setLipSyncLevel(data.intensity / 100);
-              }}
-              disableAudioPlayback={true}
-            />
-          )}
-          
-          {/* Audio playback handled by AudioControls component in battle-arena.tsx */}
+          {/* Visual feedback - audio playback handled by system player in battle-arena.tsx */}
           
           {/* Subtle visual feedback when speaking */}
           {isAISpeaking && (
@@ -240,19 +219,6 @@ export function BattleAvatar({
         </div>
       </div>
 
-      {/* Audio Controls */}
-      {audioUrl && (
-        <div className="flex justify-center space-x-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="bg-battle-dark hover:bg-battle-gray border border-gray-600"
-            data-testid="button-audio-controls"
-          >
-            <Volume2 size={14} />
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
