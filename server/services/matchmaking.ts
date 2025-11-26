@@ -265,80 +265,6 @@ export class MatchmakingService {
     return intensityMap[difficulty] || 50;
   }
 
-  private selectRandomOpponent(options: MatchmakingOptions, userSkillLevel: number): typeof this.aiOpponents[0] {
-    // Filter opponents by preferred characters if specified
-    let availableOpponents = this.aiOpponents;
-    
-    if (options.preferredCharacters && options.preferredCharacters.length > 0) {
-      availableOpponents = this.aiOpponents.filter(opp => 
-        options.preferredCharacters!.includes(opp.id)
-      );
-    }
-
-    // If user has a difficulty preference, filter by that
-    if (options.difficulty) {
-      availableOpponents = availableOpponents.filter(opp => 
-        opp.difficulty === options.difficulty
-      );
-    }
-
-    // If no opponents match filters, use all opponents
-    if (availableOpponents.length === 0) {
-      availableOpponents = this.aiOpponents;
-    }
-
-    // Skill-based matchmaking: prefer opponents close to user skill level
-    const skillWeightedOpponents = availableOpponents.map(opp => {
-      const oppSkill = this.getDifficultySkillLevel(opp.difficulty);
-      const skillDiff = Math.abs(oppSkill - userSkillLevel);
-      const weight = Math.max(0.1, 1 - (skillDiff / 10)); // Higher weight for closer skill
-      return { opponent: opp, weight };
-    });
-
-    // Weighted random selection
-    const totalWeight = skillWeightedOpponents.reduce((sum, item) => sum + item.weight, 0);
-    let random = Math.random() * totalWeight;
-    
-    for (const item of skillWeightedOpponents) {
-      random -= item.weight;
-      if (random <= 0) {
-        return item.opponent;
-      }
-    }
-
-    // Fallback to last opponent
-    return skillWeightedOpponents[skillWeightedOpponents.length - 1].opponent;
-  }
-
-  private getDifficultySkillLevel(difficulty: string): number {
-    const difficultyMap: Record<string, number> = {
-      'easy': 2,
-      'normal': 5,
-      'hard': 7,
-      'nightmare': 10,
-    };
-    return difficultyMap[difficulty] || 5;
-  }
-
-  private calculateComplexity(difficulty: string): number {
-    const complexityMap: Record<string, number> = {
-      'easy': 30,
-      'normal': 50,
-      'hard': 70,
-      'nightmare': 90,
-    };
-    return complexityMap[difficulty] || 50;
-  }
-
-  private calculateIntensity(difficulty: string): number {
-    const intensityMap: Record<string, number> = {
-      'easy': 30,
-      'normal': 50,
-      'hard': 75,
-      'nightmare': 95,
-    };
-    return intensityMap[difficulty] || 50;
-  }
 
   // Queue a user for matchmaking (for future PvP features)
   async queueForMatch(options: MatchmakingOptions): Promise<void> {
@@ -379,7 +305,7 @@ export class MatchmakingService {
         
         // Calculate opponent's skill level for match difficulty
         const opponentStats = await storage.getUserStats(otherId);
-        const opponentSkillLevel = this.calculateSkillLevel(opponentStats);
+        const opponentSkillLevel = this.calculateEloRating(opponentStats);
         
         // Return real player as opponent
         const match: RandomMatch = {
