@@ -2795,21 +2795,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Record Arc transaction in database
       await storage.recordArcTransaction({
         userId,
-        battleId,
+        relatedBattleId: battleId,
         txHash: arcResult.txHash,
         txType: 'battle_reward',
-        amountUSDC: "0.10", // Battle win reward amount
+        amount: "0.10", // Battle win reward amount (0.1 USDC)
         toAddress: walletAddress,
         fromAddress: arcBlockchainService['platformWallet'] || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
         status: 'confirmed',
         blockNumber: arcResult.blockNumber,
-        confirmedAt: arcResult.confirmedAt,
-        metadata: {
-          battleScore: battle.userScore,
-          opponentScore: battle.aiScore,
-          difficulty: battle.difficulty,
-          aiCharacter: battle.aiCharacterName
-        }
+        gasUsedUSDC: arcResult.gasUsedUSDC,
+        memo: `Battle win reward - User ${userId} defeated AI ${battle.aiCharacterName} with score ${battle.userScore}/${battle.aiScore}`,
+        confirmedAt: arcResult.confirmedAt
       });
 
       // Update battle to mark reward as claimed

@@ -75,6 +75,7 @@ export interface IStorage {
   getBattle(id: string): Promise<Battle | undefined>;
   getUserBattles(userId: string, limit?: number): Promise<Battle[]>;
   updateBattleScore(battleId: string, userScore: number, aiScore: number): Promise<void>;
+  updateBattleRewardTxHash(battleId: string, txHash: string): Promise<void>;
   completeBattle(battleId: string): Promise<void>;
   updateUserStripeInfo(userId: string, data: { stripeCustomerId?: string; stripeSubscriptionId?: string }): Promise<User>;
   addUserBattles(userId: string, battleCount: number): Promise<User | null>;
@@ -422,6 +423,13 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(battles)
       .set({ userScore, aiScore })
+      .where(eq(battles.id, battleId));
+  }
+
+  async updateBattleRewardTxHash(battleId: string, txHash: string): Promise<void> {
+    await db
+      .update(battles)
+      .set({ rewardTxHash: txHash })
       .where(eq(battles.id, battleId));
   }
 
