@@ -13,7 +13,7 @@ Real-time voice-powered rap battle application where users compete against AI op
 - Voice recording with instant Groq Whisper transcription
 - AI rap generation with difficulty levels
 - Scoring system (rhyme density, flow, creativity)
-- Character selection with unique voices
+- Character selection with unique voices (Fritz-PlayAI, Deedee-PlayAI voices)
 - Battle Pass, Shop, Daily Challenges, PvP Matchmaking
 - USDC competitive stakes via Arc blockchain (demo mode)
 
@@ -27,7 +27,7 @@ client/src/
 
 server/
   routes.ts       - API endpoints
-  storage.ts      - Database operations
+  storage.ts      - Database operations (optimized battle history queries)
   services/       - Business logic (groq-tts, elevenlabs-sfx, scoring)
 
 shared/           - Shared types and schemas
@@ -52,6 +52,12 @@ shared/           - Shared types and schemas
 - `DATABASE_URL` - PostgreSQL connection
 
 ## Audio System
-- TTS: Groq PlayAI generates audio files, played via system default player
-- SFX: ElevenLabs handles crowd reactions, bells, victory sounds
-- Fallback: Web Audio API generates programmatic sounds if APIs unavailable
+- TTS: Groq PlayAI generates audio files, played via system default player button
+- SFX: Programmatic WAV fallback generation (ElevenLabs SDK lacks sound generation API)
+- Audio playback uses window.open() for cross-browser compatibility
+
+## Recent Fixes (Nov 2025)
+- Battle history query optimized (excludes heavy JSONB rounds data to prevent 507 errors)
+- BattleAvatar simplified (removed unused lip sync states)
+- Removed unused StreamingAudioPlayer from battle-arena.tsx
+- ElevenLabs SFX uses programmatic fallback (SDK doesn't support sound generation)
