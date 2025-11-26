@@ -2845,45 +2845,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Tournament leaderboard endpoint
+  // User earnings endpoint - Track USDC earnings and Arc transactions
+  app.get('/api/user/earnings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get user's Arc transactions
+      const arcTransactions = await storage.getUserArcTransactions(userId, 100);
+      const battleWinTransactions = arcTransactions.filter(tx => tx.txType === 'battle_reward');
+      
+      // Get user's Arc wallet
+      const walletAddress = await storage.getArcWalletAddress(userId);
+      
+      // Get user's balance from profile
+      const user = await storage.getUser(userId);
+      const totalEarned = parseFloat(user?.totalEarnedUSDC?.toString() || '0');
+      
+      // Calculate confirmed earnings
+      const confirmedEarnings = battleWinTransactions
+        .filter(tx => tx.status === 'confirmed')
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || '0'), 0);
+      
+      // Calculate pending earnings
+      const pendingEarnings = battleWinTransactions
+        .filter(tx => tx.status === 'pending')
+        .reduce((sum, tx) => sum + parseFloat(tx.amount || '0'), 0);
+      
+      res.json({
+        totalEarned,
+        confirmedEarnings,
+        pendingEarnings,
+        walletAddress,
+        transactionCount: battleWinTransactions.length,
+        recentTransactions: battleWinTransactions.slice(0, 20).map(tx => ({
+          txHash: tx.txHash,
+          amount: tx.amount,
+          status: tx.status,
+          createdAt: tx.createdAt,
+          confirmedAt: tx.confirmedAt,
+          relatedBattleId: tx.relatedBattleId
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching user earnings:', error);
+      res.status(500).json({ message: 'Failed to fetch earnings data' });
+    }
+  });
+
+  // Tournament leaderboard endpoint - Real data based on user performance
   app.get('/api/tournaments/leaderboard', async (_req, res) => {
     try {
-      // Get leaderboard data from database or return mock data for now
-      // TODO: Implement real leaderboard calculation based on tournament performance
-      const leaderboard = [
-        { rank: 1, userId: 'user1', username: 'MC Alpha', tournamentsWon: 12, tournamentsPlayed: 30, winRate: 40.0, averageScore: 87.5, totalPoints: 12345 },
-        { rank: 2, userId: 'user2', username: 'BeatQueen', tournamentsWon: 10, tournamentsPlayed: 28, winRate: 35.7, averageScore: 82.3, totalPoints: 10234 },
-        { rank: 3, userId: 'user3', username: 'Rhymesayer', tournamentsWon: 8, tournamentsPlayed: 25, winRate: 32.0, averageScore: 79.1, totalPoints: 9345 },
-        { rank: 4, userId: 'user4', username: 'FlowMaster', tournamentsWon: 7, tournamentsPlayed: 22, winRate: 31.8, averageScore: 76.4, totalPoints: 8765 },
-        { rank: 5, userId: 'user5', username: 'LyricLord', tournamentsWon: 6, tournamentsPlayed: 20, winRate: 30.0, averageScore: 74.2, totalPoints: 8123 },
-        { rank: 6, userId: 'user6', username: 'RapWarrior', tournamentsWon: 5, tournamentsPlayed: 18, winRate: 27.8, averageScore: 71.8, totalPoints: 7456 },
-        { rank: 7, userId: 'user7', username: 'BeatDropper', tournamentsWon: 4, tournamentsPlayed: 16, winRate: 25.0, averageScore: 69.5, totalPoints: 6789 },
-        { rank: 8, userId: 'user8', username: 'MicDrop', tournamentsWon: 3, tournamentsPlayed: 14, winRate: 21.4, averageScore: 67.1, totalPoints: 6123 },
-        { rank: 9, userId: 'user9', username: 'VerseViper', tournamentsWon: 2, tournamentsPlayed: 12, winRate: 16.7, averageScore: 64.8, totalPoints: 5456 },
-        { rank: 10, userId: 'user10', username: 'RhymeRebel', tournamentsWon: 1, tournamentsPlayed: 10, winRate: 10.0, averageScore: 62.3, totalPoints: 4789 },
-        { rank: 11, userId: 'user11', username: 'FlowFighter', tournamentsWon: 0, tournamentsPlayed: 8, winRate: 0.0, averageScore: 59.7, totalPoints: 4123 },
-        { rank: 12, userId: 'user12', username: 'BeatBuilder', tournamentsWon: 0, tournamentsPlayed: 6, winRate: 0.0, averageScore: 57.2, totalPoints: 3456 },
-        { rank: 13, userId: 'user13', username: 'LyricLancer', tournamentsWon: 0, tournamentsPlayed: 4, winRate: 0.0, averageScore: 54.8, totalPoints: 2789 },
-        { rank: 14, userId: 'user14', username: 'RapRookie', tournamentsWon: 0, tournamentsPlayed: 2, winRate: 0.0, averageScore: 52.1, totalPoints: 2123 },
-        { rank: 15, userId: 'user15', username: 'MicMaster', tournamentsWon: 0, tournamentsPlayed: 1, winRate: 0.0, averageScore: 49.5, totalPoints: 1456 },
-        { rank: 16, userId: 'user16', username: 'Spitfire', tournamentsWon: 0, tournamentsPlayed: 3, winRate: 0.0, averageScore: 47.8, totalPoints: 1234 },
-        { rank: 17, userId: 'user17', username: 'WordSmith', tournamentsWon: 1, tournamentsPlayed: 5, winRate: 20.0, averageScore: 46.2, totalPoints: 1123 },
-        { rank: 18, userId: 'user18', username: 'BeatBender', tournamentsWon: 0, tournamentsPlayed: 7, winRate: 0.0, averageScore: 44.9, totalPoints: 1012 },
-        { rank: 19, userId: 'user19', username: 'RhymeKing', tournamentsWon: 2, tournamentsPlayed: 9, winRate: 22.2, averageScore: 43.5, totalPoints: 987 },
-        { rank: 20, userId: 'user20', username: 'FlowQueen', tournamentsWon: 0, tournamentsPlayed: 4, winRate: 0.0, averageScore: 42.1, totalPoints: 876 },
-        { rank: 21, userId: 'user21', username: 'LyricStorm', tournamentsWon: 1, tournamentsPlayed: 6, winRate: 16.7, averageScore: 40.8, totalPoints: 765 },
-        { rank: 22, userId: 'user22', username: 'MicMenace', tournamentsWon: 0, tournamentsPlayed: 2, winRate: 0.0, averageScore: 39.4, totalPoints: 654 },
-        { rank: 23, userId: 'user23', username: 'VerseVortex', tournamentsWon: 3, tournamentsPlayed: 11, winRate: 27.3, averageScore: 38.0, totalPoints: 543 },
-        { rank: 24, userId: 'user24', username: 'RapRevolution', tournamentsWon: 0, tournamentsPlayed: 8, winRate: 0.0, averageScore: 36.7, totalPoints: 432 },
-        { rank: 25, userId: 'user25', username: 'BeatBaron', tournamentsWon: 1, tournamentsPlayed: 7, winRate: 14.3, averageScore: 35.3, totalPoints: 321 },
-        { rank: 26, userId: 'user26', username: 'WordWarrior', tournamentsWon: 0, tournamentsPlayed: 5, winRate: 0.0, averageScore: 34.0, totalPoints: 210 },
-        { rank: 27, userId: 'user27', username: 'FlowPhantom', tournamentsWon: 2, tournamentsPlayed: 10, winRate: 20.0, averageScore: 32.6, totalPoints: 99 },
-      ];
+      // Get all users with tournament data and calculate rankings
+      const allUsers = await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          tournamentsWon: userProgress.totalTournamentsWon,
+          totalBattles: userProgress.totalBattlesPlayed,
+          totalWins: userProgress.totalBattlesWon,
+          level: userProgress.level,
+        })
+        .from(users)
+        .leftJoin(userProgress, eq(users.id, userProgress.userId))
+        .where(gt(userProgress.totalTournamentsWon, 0))
+        .orderBy(desc(userProgress.totalTournamentsWon))
+        .limit(50);
+
+      // Format leaderboard with rankings
+      const leaderboard = allUsers.map((user, index) => {
+        const tournamentsWon = user.tournamentsWon || 0;
+        const totalBattles = user.totalBattles || 0;
+        const totalWins = user.totalWins || 0;
+        const winRate = totalBattles > 0 ? (totalWins / totalBattles) * 100 : 0;
+        const averageScore = totalWins > 0 ? (totalWins / totalBattles) * 100 : 0;
+        const totalPoints = tournamentsWon * 1000 + (winRate * 10);
+        
+        return {
+          rank: index + 1,
+          userId: user.id,
+          username: `${user.firstName} ${user.lastName}`,
+          tournamentsWon,
+          tournamentsPlayed: totalBattles,
+          winRate: Math.round(winRate * 10) / 10,
+          averageScore: Math.round(averageScore * 10) / 10,
+          totalPoints: Math.round(totalPoints)
+        };
+      });
 
       res.json(leaderboard);
     } catch (error) {
       console.error('Error fetching tournament leaderboard:', error);
-      res.status(500).json({ message: 'Failed to fetch tournament leaderboard' });
+      // Return empty array on error instead of 500
+      res.json([]);
     }
   });
 
