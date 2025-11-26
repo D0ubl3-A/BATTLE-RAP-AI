@@ -101,71 +101,8 @@ export class ElevenLabsSFXService {
   }
 
   private async generateAISound(soundType: SoundType): Promise<Buffer> {
-    if (!this.elevenlabs) {
-      throw new Error('ElevenLabs client not initialized');
-    }
-
-    const config = this.getSoundConfig(soundType);
-    console.log(`🎵 Generating AI sound effect: ${soundType} - "${config.prompt}"`);
-
-    try {
-      // Use ElevenLabs Sound Effects API
-      const audioResponse = await this.elevenlabs.textToSpeech.convertWithTimestamps(
-        'sound_generation' as any, // Special voice ID for sound effects
-        {
-          text: config.prompt,
-          modelId: 'eleven_multilingual_v2',
-          outputFormat: 'mp3_44100_128'
-        }
-      );
-
-      // Convert ReadableStream to buffer
-      const chunks: Uint8Array[] = [];
-      const reader = audioResponse.audioBase64 ? null : (audioResponse as any).getReader?.();
-      
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-        }
-        return Buffer.concat(chunks);
-      } else {
-        // If audioBase64 is provided, convert it
-        const base64Data = (audioResponse as any).audioBase64 || '';
-        return Buffer.from(base64Data, 'base64');
-      }
-    } catch (error: any) {
-      // Try alternative approach with sound generation endpoint
-      console.log(`🔄 Trying alternative sound generation method for ${soundType}`);
-      
-      try {
-        // Use the sound generation API directly
-        const response = await (this.elevenlabs as any).soundGeneration?.generate?.({
-          text: config.prompt,
-          duration_seconds: config.duration,
-          prompt_influence: 0.8
-        });
-
-        if (response) {
-          const chunks: Uint8Array[] = [];
-          const reader = response.getReader?.();
-          
-          if (reader) {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              chunks.push(value);
-            }
-            return Buffer.concat(chunks);
-          }
-        }
-      } catch (altError) {
-        console.warn('Alternative generation also failed:', altError);
-      }
-
-      throw error;
-    }
+    console.log(`🎵 Sound effect requested: ${soundType}`);
+    return this.generateFallbackSound(soundType);
   }
 
   private generateFallbackSound(soundType: SoundType): Buffer {

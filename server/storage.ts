@@ -378,12 +378,44 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserBattles(userId: string, limit = 10): Promise<Battle[]> {
-    return await db
-      .select()
+    const results = await db
+      .select({
+        id: battles.id,
+        userId: battles.userId,
+        userScore: battles.userScore,
+        aiScore: battles.aiScore,
+        difficulty: battles.difficulty,
+        profanityFilter: battles.profanityFilter,
+        aiCharacterId: battles.aiCharacterId,
+        aiCharacterName: battles.aiCharacterName,
+        aiVoiceId: battles.aiVoiceId,
+        lyricComplexity: battles.lyricComplexity,
+        styleIntensity: battles.styleIntensity,
+        voiceSpeed: battles.voiceSpeed,
+        status: battles.status,
+        isStakeBattle: battles.isStakeBattle,
+        stakeAmountUSDC: battles.stakeAmountUSDC,
+        stakeTxHash: battles.stakeTxHash,
+        rewardTxHash: battles.rewardTxHash,
+        isMultiplayer: battles.isMultiplayer,
+        opponentUserId: battles.opponentUserId,
+        opponentScore: battles.opponentScore,
+        turnTimeLimit: battles.turnTimeLimit,
+        lastTurnAt: battles.lastTurnAt,
+        isPaused: battles.isPaused,
+        pausedAt: battles.pausedAt,
+        createdAt: battles.createdAt,
+        completedAt: battles.completedAt,
+      })
       .from(battles)
       .where(eq(battles.userId, userId))
       .orderBy(battles.createdAt)
       .limit(limit);
+    
+    return results.map(r => ({
+      ...r,
+      rounds: [],
+    })) as unknown as Battle[];
   }
 
   async updateBattleScore(battleId: string, userScore: number, aiScore: number): Promise<void> {
