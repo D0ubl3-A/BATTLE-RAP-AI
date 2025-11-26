@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,12 +9,20 @@ export interface GroqTTSOptions {
 }
 
 export class GroqTTSService {
-  private elevenLabsApiKey: string;
+  private elevenLabsClient: ElevenLabsClient | null = null;
   private outputDir: string;
 
   constructor(options: GroqTTSOptions) {
-    // Use ElevenLabs API key from environment (Groq doesn't have TTS)
-    this.elevenLabsApiKey = process.env.ELEVENLABS_API_KEY || options.apiKey;
+    // Use ElevenLabs SDK with API key from environment (Groq doesn't have TTS)
+    const apiKey = process.env.ELEVENLABS_API_KEY || options.apiKey;
+    if (apiKey) {
+      try {
+        this.elevenLabsClient = new ElevenLabsClient({ apiKey });
+        console.log('✅ ElevenLabs TTS Service initialized');
+      } catch (e) {
+        console.warn('⚠️ Failed to initialize ElevenLabs:', e);
+      }
+    }
     
     this.outputDir = path.join(process.cwd(), 'temp_audio');
     if (!fs.existsSync(this.outputDir)) {
@@ -96,11 +104,11 @@ export class GroqTTSService {
     console.log(`🎤 ElevenLabs TTS generating for ${characterId}: "${text.substring(0, 50)}..."`);
     
     try {
-      if (!this.elevenLabsApiKey) {
-        throw new Error('No ElevenLabs API key available');
+      if (!this.elevenLabsClient) {
+        throw new Error('ElevenLabs client not initialized');
       }
 
-      const voice = this.getVoiceForCharacter(characterId, options.gender);
+      const voiceId = this.mapVoiceToCharacterId(characterId);
       
       // Apply robot voice effects for CYPHER-9000
       const processedText = this.applyRobotVoiceEffects(text, characterId);
@@ -119,33 +127,22 @@ export class GroqTTSService {
             .replace(/\s+/g, ' ')
             .trim();
 
-      console.log(`🎤 Voice Settings for ${characterId}: ${voice}`);
+      console.log(`🎤 TTS for ${characterId} using voice ${voiceId}`);
 
-      // Use ElevenLabs TTS API (actual working endpoint)
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${this.mapVoiceToElevenLabsId(voice)}`,
+      // Use ElevenLabs SDK (handles auth properly)
+      const audio = await this.elevenLabsClient.textToSpeech.convert(
+        voiceId,
         {
-          method: 'POST',
-          headers: {
-            'xi-api-key': this.elevenLabsApiKey,
-            'Content-Type': 'application/json',
+          text: cleanText,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
           },
-          body: JSON.stringify({
-            text: cleanText,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
-      }
-
-      const buffer = await response.buffer();
+      const buffer = Buffer.from(audio);
       const timestamp = Date.now();
       const filename = `elevenlabs_tts_${characterId}_${timestamp}.mp3`;
       const outputPath = path.join(this.outputDir, filename);
@@ -167,48 +164,39 @@ export class GroqTTSService {
     }
   }
 
-  private mapVoiceToElevenLabsId(voice: string): string {
-    // Map character voices to ElevenLabs voice IDs
+  private mapVoiceToCharacterId(characterId: string): string {
+    // Map to ElevenLabs voice IDs directly by character
     const voiceMap: Record<string, string> = {
-      'Fritz-PlayAI': '21m00Tcm4TlvDq8ikWAM',      // Zen (calm)
-      'Deedee-PlayAI': 'EXAVITQu4vr4xnSDxMaL',    // Chris (energetic)
-      'Thunder-PlayAI': 'g5CIjZEefAph4nQFvHAz',   // Gigi (confident)
-      'Basil-PlayAI': 'jBpfuIE2acCqe6DYd0OnJ',    // Bella (warm)
-      'Cillian-PlayAI': 'tAZz3TKpW9KVe1ijCHXw',   // Josh (serious)
-      'Calum-PlayAI': 'TxGEqnHWrfWFTfGW9XjX',     // Adam (neutral)
+      'razor': 'EXAVITQu4vr4xnSDxMaL',       // Chris - energetic female
+      'venom': 'g5CIjZEefAph4nQFvHAz',      // Gigi - confident
+      'silk': 'jBpfuIE2acCqe6DYd0OnJ',      // Bella - warm
+      'cypher': '21m00Tcm4TlvDq8ikWAM',     // Zen - calm/robotic
     };
-    return voiceMap[voice] || '21m00Tcm4TlvDq8ikWAM'; // Default to Zen
+    return voiceMap[characterId] || 'EXAVITQu4vr4xnSDxMaL'; // Default to Chris
   }
 
   // Test if the API key works
   async testConnection(): Promise<boolean> {
     try {
-      if (!this.elevenLabsApiKey) {
-        console.error('❌ No ElevenLabs API key available');
+      if (!this.elevenLabsClient) {
+        console.error('❌ ElevenLabs client not initialized');
         return false;
       }
 
-      const response = await fetch(
-        'https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM',
+      const audio = await this.elevenLabsClient.textToSpeech.convert(
+        '21m00Tcm4TlvDq8ikWAM',
         {
-          method: 'POST',
-          headers: {
-            'xi-api-key': this.elevenLabsApiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: 'Test',
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-          }),
+          text: 'Test',
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
         }
       );
 
-      if (response.ok) {
+      if (audio && Buffer.isBuffer(audio)) {
         console.log('✅ ElevenLabs TTS API connection successful');
         return true;
       } else {
-        console.error(`❌ ElevenLabs API error: ${response.status}`);
+        console.error('❌ ElevenLabs API returned invalid response');
         return false;
       }
     } catch (error: any) {
