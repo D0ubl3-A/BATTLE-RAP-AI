@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Mic, Trophy, Clock, Flame, Wifi, History, Share, Dumbbell, User, BarChart3 } from "lucide-react";
+import { Mic, Trophy, Clock, Flame, Wifi, History, Share, Dumbbell, User, BarChart3, Volume2 } from "lucide-react";
 import { CharacterSelector } from "@/components/character-selector";
 import type { BattleCharacter } from "@shared/characters";
 import { cloneToBattleCharacter } from "@shared/characters";
@@ -515,6 +515,39 @@ export default function BattleArena() {
   const handleCloseLyricBreakdown = () => {
     setShowLyricBreakdown(false);
     setCurrentAnalysisText("");
+  };
+
+  const handleViewAllBattles = () => {
+    console.log("📊 Navigating to battle history");
+    // Navigate to full battle history page
+  };
+
+  const handlePracticeMode = () => {
+    console.log("🎯 Starting practice mode");
+    handleNewBattle(); // Reuse battle start logic
+  };
+
+  const handleShareResults = () => {
+    console.log("📤 Sharing battle results");
+    if (navigator.share && battleState) {
+      navigator.share({
+        title: "Epic Rap Battle",
+        text: `I just battled AI and scored ${battleState.userScore}! Can you beat my score?`,
+        url: window.location.href
+      }).catch(err => console.log('Share cancelled or failed:', err));
+    } else {
+      toast({ title: "Share Results", description: "Copy the link to share your battle!" });
+    }
+  };
+
+  const handleEmergencyStop = () => {
+    console.log("🛑 Emergency stop triggered");
+    updateBattleState({ currentRound: 0, isAIResponding: false });
+    cancelActiveRequest();
+    stopAllSFX();
+    setLiveTranscription("");
+    setAiResponse("");
+    setCurrentAiAudio(undefined);
   };
 
   if (isLoading) {
@@ -1107,21 +1140,6 @@ export default function BattleArena() {
 
             {/* AI & Audio Controls Panel */}
             <div className="space-y-6">
-              {/* Streaming Audio Player - Progressive playback with autoplay */}
-              {chunks.length > 0 && (
-                <StreamingAudioPlayer
-                  chunks={chunks}
-                  characterName={selectedCharacter?.displayName || 'MC Razor'}
-                  autoplay={true}
-                  onChunkPlay={(index) => {
-                    console.log(`🎵 Playing chunk ${index}/${chunks.length}`);
-                  }}
-                  onAllChunksComplete={() => {
-                    console.log('✅ All audio chunks played');
-                    updateBattleState({ isPlayingAudio: false });
-                  }}
-                />
-              )}
 
               {/* Battle History - Neon Apex Design */}
               <motion.div
@@ -1175,6 +1193,7 @@ export default function BattleArena() {
                     </div>
 
                     <Button 
+                      onClick={handleViewAllBattles}
                       className="w-full mt-4 gradient-primary-bg hover-lift" 
                       variant="default"
                       data-testid="button-view-all-battles"
@@ -1210,6 +1229,7 @@ export default function BattleArena() {
                       
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
+                          onClick={handlePracticeMode}
                           variant="outline"
                           className="w-full neon-border-cyan text-prism-cyan hover:bg-gradient-card-bg hover-lift"
                           data-testid="button-practice-mode"
@@ -1221,6 +1241,7 @@ export default function BattleArena() {
                       
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
+                          onClick={handleShareResults}
                           variant="outline"
                           className="w-full glass-panel border-gray-600 hover-lift"
                           data-testid="button-share-results"
@@ -1249,6 +1270,7 @@ export default function BattleArena() {
           <div className="flex items-center space-x-4">
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <Button
+                onClick={handleEmergencyStop}
                 variant="destructive"
                 size="sm"
                 className="gradient-primary-bg w-12 h-12 rounded-full hover-lift"
