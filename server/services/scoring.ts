@@ -11,12 +11,15 @@ export class ScoringService {
 
   calculateRhymeDensity(text: string, isFinalScore: boolean = false, battleId?: string): number {
     // Use the advanced phonetic analyzer for accurate rhyme detection
+    const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return 0;
+    
     const rhymeAnalysis = this.phoneticAnalyzer.getEnhancedRhymeAnalysis(text, isFinalScore, battleId);
     
     console.log(`🎵 Advanced rhyme analysis ${isFinalScore ? 'FINAL' : 'preview'}: Perfect=${rhymeAnalysis.perfectRhymes}, Slant=${rhymeAnalysis.slantRhymes}, Multi-syllabic=${rhymeAnalysis.multiSyllabicScore}, Assonance=${rhymeAnalysis.assonanceScore}`);
     
-    // COMPREHENSIVE SCORING using all advanced metrics
-    const perfectRhymeScore = Math.min(35, rhymeAnalysis.perfectRhymes * 8);
+    // COMPREHENSIVE SCORING using all advanced metrics - minimum 1pt for any word input
+    const perfectRhymeScore = Math.min(35, Math.max(1, rhymeAnalysis.perfectRhymes * 8));
     const slantRhymeScore = Math.min(15, rhymeAnalysis.slantRhymes * 3);
     const internalRhymeScore = Math.min(20, rhymeAnalysis.advancedInternalRhymes * 2);
     const multiSyllabicScore = Math.min(15, rhymeAnalysis.multiSyllabicScore * 0.3);

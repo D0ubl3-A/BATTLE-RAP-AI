@@ -245,17 +245,18 @@ export class PhoneticRhymeAnalyzer {
         // Count rhyme types by analyzing family patterns
         analysis.familyCounts.forEach((count, familyLetter) => {
           const family = this.families.get(familyLetter);
-          if (family && count > 1) {
-            // Determine perfect vs slant based on pattern exactness
-            const rhymePairs = Math.floor(count / 2);
+          if (family && count >= 1) {
+            // For single occurrences, still count as a partial rhyme (0.5 points)
+            // For multiple occurrences, count pairs
+            let rhymeCredit = count === 1 ? 0.5 : Math.floor(count / 2);
 
             // Analyze pattern precision for classification
             const isExactPattern = this.isExactRhymePattern(family.pattern);
 
             if (isExactPattern) {
-              totalPerfectRhymes += rhymePairs;
+              totalPerfectRhymes += rhymeCredit;
             } else {
-              totalSlantRhymes += rhymePairs;
+              totalSlantRhymes += rhymeCredit;
             }
           }
         });
