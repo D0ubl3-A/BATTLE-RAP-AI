@@ -283,6 +283,48 @@ export class ScoringService {
     const lower = text.toLowerCase();
     const words = lower.split(/\s+/);
     
+    // IDIOMS DETECTION - phrases with hidden meanings
+    const idiomPatterns = [
+      /\b(break.*ice|cut.*slack|rain.*on|spill.*tea|throw.*under.*bus|stab.*back|steal.*thunder|break.*deal|cold.*shoulder)\b/g,
+      /\b(piece of cake|walk in park|ball.*park|on thin ice|under weather|back wall|caught red|jump gun|throw towel)\b/g,
+      /\b(bite dust|chew fat|chop suey|cook book|cut chase|dig deeper|eat crow|face music|fat chance|go distance)\b/g
+    ];
+    
+    let idiomsFound = 0;
+    idiomPatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      idiomsFound += matches.length;
+      score += matches.length * 4; // 4 points per idiom
+    });
+    
+    // TRIPLE ENTENDRES - words with 3+ simultaneous meanings
+    const tripleEntendrePatterns = [
+      /\b(hard|soft|wet|dry|hot|cold|fast|slow|light|dark|bright)\b/g, // Can mean physical, sexual, or skill-based
+      /\b(beat|flow|bars|spit|tongue|play|kick|punch|strike|bang)\b/g, // Physical, musical, sexual
+      /\b(fire|ride|stack|racks|bands|chain|sick|dope|ill|fly)\b/g // Quality, wealth, health, style
+    ];
+    
+    let tripleEntendres = 0;
+    tripleEntendrePatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      tripleEntendres += matches.length;
+      score += matches.length * 3; // 3 points per triple entendre usage
+    });
+    
+    // DOUBLE ENTENDRES - sexual/double meanings
+    const doubleEntendrePatterns = [
+      /\b(stroke|insert|position|ride|deep|thick|hard|penetrate|cream|cream on)\b/g,
+      /\b(pipe|tool|drill|pump|work it|work on|come|drop|load|unload)\b/g,
+      /\b(box|hole|tight|loose|wet|grow|eat|suck|lick|swallow)\b/g
+    ];
+    
+    let doubleEntendres = 0;
+    doubleEntendrePatterns.forEach(pattern => {
+      const matches = lower.match(pattern) || [];
+      doubleEntendres += matches.length;
+      score += matches.length * 2; // 2 points per double entendre
+    });
+    
     // Multi-syllabic wordplay (like Eminem)
     for (let i = 0; i < words.length - 1; i++) {
       const word1 = words[i];
@@ -291,24 +333,14 @@ export class ScoringService {
       // Check for similar sounds/patterns
       if (word1.length > 3 && word2.length > 3) {
         if (this.soundSimilar(word1, word2)) {
-          score += 3;
+          score += 2;
         }
       }
     }
     
-    // Double/triple entendres
-    const entendrePatterns = [
-      /\b(bank|dough|bread|green|cash)\b.*\b(money|rich|broke|pay)\b/g,
-      /\b(fire|hot|burn|flame)\b.*\b(sick|ill|cold|freeze)\b/g,
-      /\b(crown|king|royal)\b.*\b(rule|reign|throne)\b/g
-    ];
+    console.log(`🎭 Wordplay breakdown: Idioms ${idiomsFound}, Triple Entendres ${tripleEntendres}, Double Entendres ${doubleEntendres}`);
     
-    entendrePatterns.forEach(pattern => {
-      const matches = lower.match(pattern) || [];
-      score += matches.length * 5;
-    });
-    
-    return Math.min(20, score);
+    return Math.min(40, score); // Increased max from 20 to 40
   }
   
   private detectFigurativeLanguage(text: string): number {
@@ -386,25 +418,44 @@ export class ScoringService {
   
   private detectHomonyms(text: string): number {
     let score = 0;
-    const words = text.toLowerCase().split(/\s+/);
+    const words = text.toLowerCase().split(/\s+/).map(w => w.replace(/[^\w]/g, ''));
     
-    // Common homonyms and double meanings in rap
+    // COMPREHENSIVE HOMONYM & HOMOPHONE LIST - words that sound same but different meanings
     const homonymPairs = [
-      ['to', 'too', 'two'], ['there', 'their', 'they\'re'],
-      ['right', 'write'], ['peace', 'piece'], ['steal', 'steel'],
+      // Sound-alikes (homophones)
+      ['to', 'too', 'two'], ['there', 'their', 'theyre'],
+      ['right', 'write', 'rite'], ['peace', 'piece'], ['steal', 'steel'],
       ['brake', 'break'], ['rain', 'reign', 'rein'], ['cent', 'sent', 'scent'],
       ['bass', 'base'], ['beat', 'beet'], ['rap', 'wrap'],
-      ['flow', 'flo'], ['bars', 'bars'], ['dope', 'dope']
+      ['see', 'sea'], ['buy', 'by', 'bye'], ['for', 'four', 'fore'],
+      ['knight', 'night'], ['know', 'no'], ['new', 'knew', 'gnu'],
+      ['one', 'won'], ['be', 'bee'], ['pear', 'pair', 'pare'],
+      ['meat', 'meet'], ['mail', 'male'], ['tale', 'tail'],
+      ['way', 'weigh'], ['would', 'wood'], ['hear', 'here'],
+      ['son', 'sun'], ['blew', 'blue'], ['threw', 'through'],
+      
+      // Rap-specific homonyms (multiple meanings in hip-hop)
+      ['flow', 'flo', 'glow'], ['bars', 'stars'], ['dope', 'rope'],
+      ['bars', 'jars'], ['spit', 'split'], ['hit', 'quit'],
+      ['pen', 'then'], ['stacks', 'cracks'], ['racks', 'backs'],
+      ['check', 'rep'], ['chain', 'brain'], ['crown', 'down'],
+      ['throne', 'zone'], ['sick', 'quick'], ['ill', 'still'],
+      ['fire', 'higher', 'wire'], ['hot', 'pot', 'got'],
+      ['fly', 'high', 'sky'], ['dill', 'will', 'skill']
     ];
     
+    let homonymsUsed = 0;
     homonymPairs.forEach(group => {
       const groupWords = group.filter(word => words.includes(word));
       if (groupWords.length >= 2) {
-        score += 3;
+        homonymsUsed++;
+        score += 4; // Increased from 3 to 4 per pair
       }
     });
     
-    return Math.min(10, score);
+    console.log(`🎤 Homonyms detected: ${homonymsUsed} pairs used`);
+    
+    return Math.min(30, score); // Increased max from 10 to 30
   }
   
   private analyzeRhythm(text: string): number {
@@ -444,6 +495,60 @@ export class ScoringService {
     return ending1 === ending2 || 
            cleanWord1.includes(cleanWord2.slice(0, 3)) ||
            cleanWord2.includes(cleanWord1.slice(0, 3));
+  }
+
+  private detectRhymeJuggling(text: string): number {
+    // HEAVY RHYME JUGGLING - complex weaving of multiple rhyme schemes
+    let score = 0;
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    if (lines.length < 2) return 0;
+    
+    // Detect multiple simultaneous rhyme patterns
+    const rhymeSchemes: Map<string, number> = new Map();
+    
+    for (let i = 0; i < lines.length; i++) {
+      const lineWords = lines[i].toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      
+      if (lineWords.length === 0) continue;
+      
+      const lastWord = lineWords[lineWords.length - 1].replace(/[^\w]/g, '');
+      const rhymeEnding = lastWord.slice(-2);
+      
+      // Track rhyme patterns
+      if (!rhymeSchemes.has(rhymeEnding)) {
+        rhymeSchemes.set(rhymeEnding, 0);
+      }
+      rhymeSchemes.set(rhymeEnding, rhymeSchemes.get(rhymeEnding)! + 1);
+    }
+    
+    // Bonus for complex rhyme juggling (3+ different schemes used)
+    const numSchemes = rhymeSchemes.size;
+    if (numSchemes >= 3) {
+      score += 8; // Heavy bonus for complex juggling
+    } else if (numSchemes === 2) {
+      score += 4; // Moderate bonus for dual scheme
+    }
+    
+    // Additional bonus for alternating patterns (ABAB, AABB, etc)
+    let alternatingCount = 0;
+    for (let i = 0; i < lines.length - 1; i++) {
+      const word1 = lines[i].toLowerCase().split(/\s+/).pop()?.replace(/[^\w]/g, '') || '';
+      const word2 = lines[i + 1].toLowerCase().split(/\s+/).pop()?.replace(/[^\w]/g, '') || '';
+      
+      if (word1.slice(-2) !== word2.slice(-2)) {
+        alternatingCount++;
+      }
+    }
+    
+    // Bonus for alternating patterns (shows sophistication)
+    if (alternatingCount >= lines.length * 0.6) {
+      score += 5;
+    }
+    
+    console.log(`🎵 Rhyme juggling: ${numSchemes} schemes, alternating pattern strength ${alternatingCount}/${lines.length}`);
+    
+    return Math.min(20, score);
   }
 
   // DIABOLICAL PUNCHLINE DETECTION METHODS
