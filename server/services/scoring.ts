@@ -145,20 +145,23 @@ export class ScoringService {
     // 6. HOMONYMS & DOUBLE MEANINGS enhanced (10 points max)
     const homonymScore = this.detectHomonyms(text);
     
-    // 7. RHYTHM & PHONETIC FLOW enhanced (10 points max)
+    // 7. HEAVY RHYME JUGGLING - complex multi-scheme patterns (20 points max)
+    const rhymeJugglingScore = this.detectRhymeJuggling(text);
+    
+    // 8. RHYTHM & PHONETIC FLOW enhanced (10 points max)
     const rhythmScore = isFinalScore ? 
       Math.min(10, rhymeAnalysis.rhythmConsistency * 0.1) :
       this.analyzeRhythm(text);
     
-    // 8. ORIGINALITY enhanced with phonetic uniqueness (15 points max)
+    // 9. ORIGINALITY enhanced with phonetic uniqueness (15 points max)
     const originalityScore = this.calculateOriginality(text, rhymeAnalysis, isFinalScore);
     
     const totalScore = Math.round(
       vocabularyComplexity + phoneticallyEnhancedDiversity + wordplayScore + figurativeScore + 
-      punchlineScore + homonymScore + rhythmScore + originalityScore
+      punchlineScore + homonymScore + rhymeJugglingScore + rhythmScore + originalityScore
     );
     
-    console.log(`🎭 Creativity breakdown: Vocab Complexity ${vocabularyComplexity}/20, Diversity ${phoneticallyEnhancedDiversity}/15, Wordplay ${wordplayScore}/20, Figurative ${figurativeScore}/15, Punchlines ${punchlineScore}/50, Homonyms ${homonymScore}/10, Rhythm ${rhythmScore}/10, Originality ${originalityScore}/15`);
+    console.log(`🎭 Creativity breakdown: Vocab ${vocabularyComplexity}/20, Diversity ${phoneticallyEnhancedDiversity}/15, Wordplay ${wordplayScore}/40, Figurative ${figurativeScore}/15, Punchlines ${punchlineScore}/50, Homonyms ${homonymScore}/30, RhymeJuggling ${rhymeJugglingScore}/20, Rhythm ${rhythmScore}/10, Originality ${originalityScore}/15`);
     
     return Math.min(100, totalScore + (isFinalScore ? 5 : 0)); // Bonus for final score processing
   }
