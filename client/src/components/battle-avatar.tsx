@@ -10,14 +10,6 @@ interface BattleAvatarProps {
   character?: BattleCharacter;
 }
 
-interface LipSyncData {
-  mouthOpenness: number;
-  jawRotation: number;
-  lipCornerPull: number;
-  tongueTip: number;
-  intensity: number;
-}
-
 export function BattleAvatar({ 
   isAISpeaking, 
   battleState = "idle",
@@ -25,18 +17,9 @@ export function BattleAvatar({
   character
 }: BattleAvatarProps) {
   const [currentEmotion, setCurrentEmotion] = useState<"neutral" | "angry" | "happy">("neutral");
-  const [lipSyncLevel, setLipSyncLevel] = useState(0);
   const [mouthShape, setMouthShape] = useState<"closed" | "small" | "medium" | "large">("closed");
-  const [lipSyncData, setLipSyncData] = useState<LipSyncData>({
-    mouthOpenness: 0,
-    jawRotation: 0,
-    lipCornerPull: 0,
-    tongueTip: 0,
-    intensity: 0
-  });
 
   useEffect(() => {
-    // Update avatar emotion based on battle state
     switch (battleState) {
       case "mad":
         setCurrentEmotion("angry");
@@ -52,11 +35,9 @@ export function BattleAvatar({
     }
   }, [battleState]);
 
-  // Remove duplicate audio system - let AdvancedLipSync handle everything
   useEffect(() => {
     if (!isAISpeaking) {
       setMouthShape("closed");
-      setLipSyncLevel(0);
       setCurrentEmotion("neutral");
     }
   }, [isAISpeaking]);
@@ -117,32 +98,32 @@ export function BattleAvatar({
           }}
           data-testid="avatar-ai-character"
         >
-          {/* Character Avatar Image with Real Lip Sync Animation */}
           {character?.avatar ? (
             <motion.img
               src={`/attached_assets/generated_images/${character.avatar}`}
               alt={character.displayName}
               className="w-full h-full object-cover"
               animate={{
-                // More pronounced avatar animation based on lip sync data
-                scaleY: isAISpeaking ? (1 + (lipSyncData.mouthOpenness * 0.02)) : 1,
-                scaleX: isAISpeaking ? (1 + (lipSyncData.lipCornerPull * 0.008)) : 1,
-                transformOrigin: "center 70%", // Focus on mouth area
+                scaleY: isAISpeaking ? [1, 1.02, 1] : 1,
+                scaleX: isAISpeaking ? [1, 1.01, 1] : 1,
+                transformOrigin: "center 70%",
                 filter: isAISpeaking ? 
-                  `brightness(${1 + lipSyncData.intensity * 0.02}) contrast(${1 + lipSyncData.intensity * 0.015}) saturate(${1 + lipSyncData.intensity * 0.01})` : 
+                  'brightness(1.1) contrast(1.05) saturate(1.1)' : 
                   'brightness(1) contrast(1) saturate(1)'
               }}
-              transition={{ duration: 0.08, ease: "easeOut" }}
+              transition={{ 
+                duration: 0.5, 
+                repeat: isAISpeaking ? Infinity : 0,
+                ease: "easeInOut" 
+              }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-6xl text-white">
               🤖
             </div>
           )}
-
-          {/* Visual feedback - audio playback handled by system player in battle-arena.tsx */}
           
-          {/* Subtle visual feedback when speaking */}
+          {/* Visual glow effect when speaking */}
           {isAISpeaking && (
             <motion.div 
               className="absolute inset-0 rounded-full"

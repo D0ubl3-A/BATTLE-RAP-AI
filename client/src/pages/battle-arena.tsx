@@ -15,9 +15,7 @@ import { useSFXManager } from "@/hooks/useSFXManager";
 import { RecordingPanel } from "@/components/recording-panel";
 import { BattleAvatar } from "@/components/battle-avatar";
 import { BattleTextDisplay } from "@/components/battle-text-display";
-import { StreamingAudioPlayer } from "@/components/streaming-audio-player";
 import { DialoguePanel } from "@/components/dialogue-panel";
-import { useStreamingAudio } from "@/hooks/use-streaming-audio";
 import { SimpleAnalyzer } from "@/components/simple-analyzer";
 import { formatDuration } from "@/lib/audio-utils";
 import { preventMobileOverscroll, applyMobileScrollClasses } from "@/lib/mobile-scroll-prevention";
@@ -57,9 +55,6 @@ export default function BattleArena() {
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showLyricBreakdown, setShowLyricBreakdown] = useState(false);
   const [currentAnalysisText, setCurrentAnalysisText] = useState("");
-
-  // Streaming audio hook for progressive playback
-  const { chunks, generateStreamingAudio } = useStreamingAudio();
 
   // Audio race condition prevention
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
@@ -399,35 +394,12 @@ export default function BattleArena() {
           updateBattleState({ isAIResponding: false });
         }
         
-        console.log('🎵 AI audio received, waiting for text to finish displaying...');
-        console.log('🎵 Audio URL length:', result.audioUrl?.length || 0);
-        console.log('🎵 Audio available:', !!result.audioUrl);
-        
-        // Generate streaming audio immediately for progressive playback
-        const textLength = result.aiResponse?.length || 0;
-        const typingDelay = Math.min(textLength * 50, 3000); // 50ms per character, max 3 seconds
-        
-        console.log('🎵 Waiting', typingDelay, 'ms for text to finish displaying...');
-        
-        // Clear any existing timer before setting new one
-        clearTypingTimer();
-        
-        // Set new timer with request ID verification
-        typingTimerRef.current = setTimeout(async () => {
-          // ✅ RACE CONDITION PROTECTION - Only generate streaming audio if this is still the current request
-          if (currentRequestId === requestId && result.aiResponse && currentBattleId) {
-            console.log('🎵 Text display complete - generating streaming audio for request:', requestId);
-            
-            const characterId = selectedCharacter?.id || 'razor';
-            await generateStreamingAudio(result.aiResponse, characterId, currentBattleId);
-            console.log('✅ Streaming audio chunks generated');
-          } else {
-            console.log('🚫 Ignoring stale audio generation for old request:', requestId, '(current:', currentRequestId, ')');
-          }
-          typingTimerRef.current = null;
-        }, typingDelay);
-        
-        // Audio playback is now handled by StreamingAudioPlayer with progressive playback
+        // Set audio URL for playback via system player button
+        if (result.audioUrl) {
+          console.log('🎵 AI audio received, setting for playback');
+          console.log('🎵 Audio URL length:', result.audioUrl.length);
+          setCurrentAiAudio(result.audioUrl);
+        }
         
         toast({
           title: "Round Complete!",
