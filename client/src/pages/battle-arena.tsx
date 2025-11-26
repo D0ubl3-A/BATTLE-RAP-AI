@@ -260,14 +260,14 @@ export default function BattleArena() {
     }
   }, [currentBattleId, showCharacterSelector, selectedCharacter]);
 
-  // Auto-play AI audio when available
+  // Auto-click play button when audio is ready
+  const playButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (currentAiAudio && audioRef.current) {
-      console.log('🎵 AUDIO AUTO-PLAY: Playing AI verse automatically');
-      audioRef.current.src = currentAiAudio;
-      audioRef.current.play().catch(e => console.error('Auto-play error:', e));
-      setIsAudioPlaying(true);
-      updateBattleState({ isPlayingAudio: true });
+    if (currentAiAudio && playButtonRef.current) {
+      console.log('🎵 AUTO-PRESSING PLAY BUTTON for AI verse');
+      setTimeout(() => {
+        playButtonRef.current?.click();
+      }, 500);
     }
   }, [currentAiAudio]);
 
@@ -996,18 +996,29 @@ export default function BattleArena() {
                 />
               </motion.div>
 
-              {/* Audio Status Display */}
+              {/* Audio Playback - Play Button with Auto-Press */}
               {currentAiAudio && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="text-center"
                 >
-                  <div className="flex items-center justify-center gap-2 text-sm text-cyan-400">
-                    <Volume2 className="w-4 h-4 animate-pulse" />
-                    {isAudioPlaying ? '🔊 AI Verse Playing...' : '✅ AI Verse Ready'}
-                  </div>
+                  <Button
+                    ref={playButtonRef}
+                    onClick={() => {
+                      console.log('🔊 Playing audio: ' + currentAiAudio);
+                      updateBattleState({ isPlayingAudio: true });
+                      if (audioRef.current) {
+                        audioRef.current.src = currentAiAudio;
+                        audioRef.current.play().catch(e => console.error('Audio play error:', e));
+                      }
+                    }}
+                    className="w-full gradient-primary-bg hover-lift flex items-center justify-center gap-2"
+                    size="lg"
+                  >
+                    <Volume2 className="w-5 h-5" />
+                    {isAudioPlaying ? '🔊 Playing...' : 'Play AI Verse'}
+                  </Button>
                 </motion.div>
               )}
               {/* Hidden audio player for inline playback */}
