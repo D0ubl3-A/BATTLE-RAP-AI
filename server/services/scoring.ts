@@ -18,20 +18,20 @@ export class ScoringService {
     
     console.log(`🎵 Advanced rhyme analysis ${isFinalScore ? 'FINAL' : 'preview'}: Perfect=${rhymeAnalysis.perfectRhymes}, Slant=${rhymeAnalysis.slantRhymes}, Multi-syllabic=${rhymeAnalysis.multiSyllabicScore}, Assonance=${rhymeAnalysis.assonanceScore}`);
     
-    // COMPREHENSIVE SCORING using all advanced metrics - minimum 1pt for any word input
-    const perfectRhymeScore = Math.min(35, Math.max(1, rhymeAnalysis.perfectRhymes * 8));
-    const slantRhymeScore = Math.min(15, rhymeAnalysis.slantRhymes * 3);
-    const internalRhymeScore = Math.min(20, rhymeAnalysis.advancedInternalRhymes * 2);
-    const multiSyllabicScore = Math.min(15, rhymeAnalysis.multiSyllabicScore * 0.3);
-    const assonanceScore = Math.min(10, rhymeAnalysis.assonanceScore * 0.1);
-    const consonanceScore = Math.min(5, rhymeAnalysis.consonanceScore * 0.1);
+    // STRICTER SCORING - NO PARTICIPATION TROPHIES. Perfect rhymes required for real points
+    const perfectRhymeScore = Math.min(40, rhymeAnalysis.perfectRhymes * 5); // Reduced multiplier (8→5), removed minimum 1pt
+    const slantRhymeScore = Math.min(15, rhymeAnalysis.slantRhymes * 2); // Reduced multiplier (3→2)
+    const internalRhymeScore = Math.min(20, rhymeAnalysis.advancedInternalRhymes * 1.5); // Reduced multiplier (2→1.5)
+    const multiSyllabicScore = Math.min(15, rhymeAnalysis.multiSyllabicScore * 0.2); // Reduced multiplier (0.3→0.2)
+    const assonanceScore = Math.min(10, rhymeAnalysis.assonanceScore * 0.05); // Reduced multiplier (0.1→0.05)
+    const consonanceScore = Math.min(5, rhymeAnalysis.consonanceScore * 0.05); // Reduced multiplier (0.1→0.05)
     
     const totalScore = Math.round(
       perfectRhymeScore + slantRhymeScore + internalRhymeScore + 
       multiSyllabicScore + assonanceScore + consonanceScore
     );
     
-    console.log(`🎵 Rhyme density breakdown: Perfect ${perfectRhymeScore}/35, Slant ${slantRhymeScore}/15, Internal ${internalRhymeScore}/20, Multi-syll ${multiSyllabicScore}/15, Assonance ${assonanceScore}/10, Consonance ${consonanceScore}/5`);
+    console.log(`🎵 Rhyme density breakdown: Perfect ${perfectRhymeScore}/40, Slant ${slantRhymeScore}/15, Internal ${internalRhymeScore}/20, Multi-syll ${multiSyllabicScore}/15, Assonance ${assonanceScore}/10, Consonance ${consonanceScore}/5`);
     
     return Math.min(100, totalScore);
   }
@@ -109,8 +109,14 @@ export class ScoringService {
   calculateCreativity(text: string, isFinalScore: boolean = false, battleId?: string): number {
     const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
     
-    // COMPREHENSIVE ANALYSIS - analyze everything regardless of length
+    // STRICTER CREATIVITY SCORING - require actual content, not filler
     console.log(`🎭 Analyzing ${words.length} words for creativity ${isFinalScore ? 'FINAL SCORE' : 'preview'}...`);
+    
+    // PENALTY: Require minimum 15 words for any creativity score. "Fighting" or single-line responses get 0
+    if (words.length < 15) {
+      console.log(`❌ Creativity blocked: Only ${words.length} words (minimum 15 required)`);
+      return 0; // NO POINTS for short, lazy responses
+    }
     
     const lines = text.split('\n').filter(line => line.trim());
     
