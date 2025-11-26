@@ -1019,42 +1019,26 @@ export default function BattleArena() {
                 />
               </motion.div>
 
-              {/* Audio Playback - Groq TTS with Manual Play */}
+              {/* Audio Playback - System Default Player */}
               {currentAiAudio && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
-                  className="glass-panel rounded-lg p-4 neon-border-cyan"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Volume2 className="w-5 h-5 text-prism-cyan animate-pulse" />
-                    <span className="text-sm font-semibold text-prism-cyan">AI Verse Audio</span>
-                  </div>
-                  <audio
-                    key={currentAiAudio}
-                    src={currentAiAudio}
-                    controls
-                    className="w-full accent-neon-magenta"
-                    crossOrigin="anonymous"
-                    onPlay={() => {
-                      console.log('🔊 AI audio playing: ' + currentAiAudio);
+                  <Button
+                    onClick={() => {
+                      console.log('🔊 Opening audio in system player: ' + currentAiAudio);
                       updateBattleState({ isPlayingAudio: true });
+                      window.open(currentAiAudio, '_blank');
+                      setTimeout(() => updateBattleState({ isPlayingAudio: false }), 500);
                     }}
-                    onEnded={() => {
-                      console.log('🔊 AI audio finished');
-                      updateBattleState({ isPlayingAudio: false });
-                    }}
-                    onError={(e) => {
-                      console.error('🔊 Audio playback error:', e);
-                      toast({ title: "Audio Error", description: "Failed to load audio. Check your connection.", variant: "destructive" });
-                    }}
-                    onLoadedMetadata={(e) => {
-                      const audio = e.currentTarget;
-                      console.log(`🎵 Audio ready: ${Math.round(audio.duration)}s`);
-                    }}
-                  />
-                  <p className="text-xs text-gray-400 mt-2">Click the play button to hear the AI's response</p>
+                    className="w-full gradient-primary-bg hover-lift flex items-center justify-center gap-2"
+                    size="lg"
+                  >
+                    <Volume2 className="w-5 h-5" />
+                    Play AI Verse in System Player
+                  </Button>
                 </motion.div>
               )}
 
