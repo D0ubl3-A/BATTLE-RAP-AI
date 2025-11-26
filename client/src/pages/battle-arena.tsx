@@ -260,11 +260,15 @@ export default function BattleArena() {
     }
   }, [currentBattleId, showCharacterSelector, selectedCharacter]);
 
-  // Track currentAiAudio state changes for debugging
+  // Auto-play AI audio when available
   useEffect(() => {
-    console.log('🎵 AUDIO DEBUG: currentAiAudio state changed to:', currentAiAudio);
-    console.log('🎵 AUDIO DEBUG: currentAiAudio length:', currentAiAudio?.length || 0);
-    console.log('🎵 AUDIO DEBUG: currentAiAudio is valid URL:', currentAiAudio && currentAiAudio.startsWith('/') && currentAiAudio.length > 10);
+    if (currentAiAudio && audioRef.current) {
+      console.log('🎵 AUDIO AUTO-PLAY: Playing AI verse automatically');
+      audioRef.current.src = currentAiAudio;
+      audioRef.current.play().catch(e => console.error('Auto-play error:', e));
+      setIsAudioPlaying(true);
+      updateBattleState({ isPlayingAudio: true });
+    }
   }, [currentAiAudio]);
 
   // Cleanup on component unmount - prevent memory leaks and race conditions
@@ -992,28 +996,18 @@ export default function BattleArena() {
                 />
               </motion.div>
 
-              {/* Audio Playback - Inline Player */}
+              {/* Audio Status Display */}
               {currentAiAudio && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.3 }}
+                  className="text-center"
                 >
-                  <Button
-                    onClick={() => {
-                      console.log('🔊 Playing audio inline: ' + currentAiAudio);
-                      updateBattleState({ isPlayingAudio: true });
-                      if (audioRef.current) {
-                        audioRef.current.src = currentAiAudio;
-                        audioRef.current.play().catch(e => console.error('Audio play error:', e));
-                      }
-                    }}
-                    className="w-full gradient-primary-bg hover-lift flex items-center justify-center gap-2"
-                    size="lg"
-                  >
-                    <Volume2 className="w-5 h-5" />
-                    {isAudioPlaying ? '🔊 Playing...' : 'Play AI Verse'}
-                  </Button>
+                  <div className="flex items-center justify-center gap-2 text-sm text-cyan-400">
+                    <Volume2 className="w-4 h-4 animate-pulse" />
+                    {isAudioPlaying ? '🔊 AI Verse Playing...' : '✅ AI Verse Ready'}
+                  </div>
                 </motion.div>
               )}
               {/* Hidden audio player for inline playback */}
