@@ -2804,9 +2804,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'confirmed',
         blockNumber: arcResult.blockNumber,
         gasUsedUSDC: arcResult.gasUsedUSDC,
-        memo: `Battle win reward - User ${userId} defeated AI ${battle.aiCharacterName} with score ${battle.userScore}/${battle.aiScore}`,
-        confirmedAt: arcResult.confirmedAt
+        memo: `Battle win reward - User ${userId} defeated AI ${battle.aiCharacterName} with score ${battle.userScore}/${battle.aiScore}`
       });
+
+      // Update transaction confirmed timestamp after insert
+      await storage.updateArcTransactionStatus(arcResult.txHash, 'confirmed', arcResult.confirmedAt);
 
       // Update battle to mark reward as claimed
       await storage.updateBattleRewardTxHash(battleId, arcResult.txHash);
