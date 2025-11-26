@@ -60,8 +60,6 @@ export default function BattleArena() {
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
   // Generate unique request ID
   const generateRequestId = useCallback(() => {
@@ -992,7 +990,7 @@ export default function BattleArena() {
                 />
               </motion.div>
 
-              {/* Audio Playback - Inline Player */}
+              {/* Audio Playback - System Default Player */}
               {currentAiAudio && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -1001,31 +999,19 @@ export default function BattleArena() {
                 >
                   <Button
                     onClick={() => {
-                      console.log('🔊 Playing audio inline: ' + currentAiAudio);
+                      console.log('🔊 Opening audio in system player: ' + currentAiAudio);
                       updateBattleState({ isPlayingAudio: true });
-                      if (audioRef.current) {
-                        audioRef.current.src = currentAiAudio;
-                        audioRef.current.play().catch(e => console.error('Audio play error:', e));
-                      }
+                      window.open(currentAiAudio, '_blank');
+                      setTimeout(() => updateBattleState({ isPlayingAudio: false }), 500);
                     }}
                     className="w-full gradient-primary-bg hover-lift flex items-center justify-center gap-2"
                     size="lg"
                   >
                     <Volume2 className="w-5 h-5" />
-                    {isAudioPlaying ? '🔊 Playing...' : 'Play AI Verse'}
+                    Play AI Verse in System Player
                   </Button>
                 </motion.div>
               )}
-              {/* Hidden audio player for inline playback */}
-              <audio 
-                ref={audioRef}
-                onEnded={() => {
-                  setIsAudioPlaying(false);
-                  updateBattleState({ isPlayingAudio: false });
-                }}
-                onPause={() => setIsAudioPlaying(false)}
-                onPlay={() => setIsAudioPlaying(true)}
-              />
 
               {/* Battle Text Display - Neon Apex Design */}
               <motion.div
