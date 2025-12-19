@@ -51,6 +51,7 @@ export default function BattleArena() {
   const [aiResponse, setAiResponse] = useState("");
   const [currentAiAudio, setCurrentAiAudio] = useState<string>();
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isUserRecording, setIsUserRecording] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<BattleCharacter | null>(null);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showLyricBreakdown, setShowLyricBreakdown] = useState(false);
@@ -60,6 +61,7 @@ export default function BattleArena() {
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastChunkSFXRef = useRef(0);
 
   // Generate unique request ID
   const generateRequestId = useCallback(() => {
@@ -159,6 +161,7 @@ export default function BattleArena() {
     playEndingEffect,
     playDialogueSFX,
     stopAllSFX,
+    config,
     enableRealtimeCrowdReactions,
     triggerCrowdOnSpeech,
     analyzeWordsForTriggers,
@@ -275,6 +278,7 @@ export default function BattleArena() {
   }, [clearTypingTimer, cancelActiveRequest]);
 
   const handleRecordingComplete = async (recording: { blob: Blob; duration: number; url: string }) => {
+    setIsUserRecording(false);
     try {
       // 🎯 RACE CONDITION PREVENTION - Generate unique request ID and setup AbortController
       const requestId = generateRequestId();
@@ -434,7 +438,28 @@ export default function BattleArena() {
     // 🎤 TRIGGER CROWD REACTIONS - Original crowd reaction functionality
     console.log('🎤 User started recording - triggering crowd on speech');
     triggerCrowdOnSpeech();
+    setIsUserRecording(true);
   };
+
+  useEffect(() => {
+    window.audioChunkCallback = (chunk: Blob) => {
+      if (!isUserRecording || !config.crowdReactions.enabled) return;
+
+      const now = Date.now();
+      if (now - lastChunkSFXRef.current < 1200) {
+        return;
+      }
+
+      const size = chunk.size;
+      const intensity = size > 18000 ? 'wild' : size > 9000 ? 'medium' : 'mild';
+      playCrowdReaction(intensity);
+      lastChunkSFXRef.current = now;
+    };
+
+    return () => {
+      window.audioChunkCallback = undefined;
+    };
+  }, [isUserRecording, config.crowdReactions.enabled, playCrowdReaction]);
 
   const handleNewBattle = () => {
     setLiveTranscription("");
