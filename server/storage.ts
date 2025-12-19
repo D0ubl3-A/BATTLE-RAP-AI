@@ -43,7 +43,7 @@ import {
 } from "@shared/schema";
 import { getCharacterById } from "@shared/characters";
 import { db, withRetry } from "./db";
-import { eq, and, gte, lt, sql, desc, count, max } from "drizzle-orm";
+import { eq, and, gte, lt, ne, inArray, sql, desc, count, max } from "drizzle-orm";
 import NodeCache from 'node-cache';
 import { xpService } from './services/xpService';
 
@@ -185,6 +185,7 @@ export interface IStorage {
   
   // Matchmaking operations
   getUserMatchmakingQueue(userId: string): Promise<any | undefined>;
+  findRandomMatchmakingOpponent(userId: string, queueType: string): Promise<any | undefined>;
   createMatchmakingEntry(userId: string, queueType: string, skillRating: number): Promise<any>;
   removeMatchmakingEntry(userId: string): Promise<void>;
   updateMatchmakingStatus(userId: string, status: string, matchData?: any): Promise<any>;
@@ -596,6 +597,8 @@ export class DatabaseStorage implements IStorage {
     if (updates.userScore !== undefined) allowedUpdates.userScore = updates.userScore;
     if (updates.aiScore !== undefined) allowedUpdates.aiScore = updates.aiScore;
     if (updates.rounds) allowedUpdates.rounds = updates.rounds;
+    if (updates.stakeTxHash) allowedUpdates.stakeTxHash = updates.stakeTxHash;
+    if (updates.rewardTxHash) allowedUpdates.rewardTxHash = updates.rewardTxHash;
 
     if (Object.keys(allowedUpdates).length > 0) {
       return withRetry(
@@ -1941,8 +1944,24 @@ export class DatabaseStorage implements IStorage {
       .from(matchmakingQueue)
       .where(and(
         eq(matchmakingQueue.userId, userId),
-        eq(matchmakingQueue.status, 'waiting')
+        inArray(matchmakingQueue.status, ['waiting', 'matched'])
       ))
+      .limit(1);
+
+    return entry;
+  }
+
+  async findRandomMatchmakingOpponent(userId: string, queueType: string): Promise<any | undefined> {
+    const [entry] = await db
+      .select()
+      .from(matchmakingQueue)
+      .where(and(
+        eq(matchmakingQueue.queueType, queueType),
+        eq(matchmakingQueue.status, 'waiting'),
+        gte(matchmakingQueue.expiresAt, new Date()),
+        ne(matchmakingQueue.userId, userId)
+      ))
+      .orderBy(sql`random()`)
       .limit(1);
 
     return entry;

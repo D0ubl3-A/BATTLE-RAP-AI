@@ -58,6 +58,10 @@ export class ArcBlockchainService {
     }
   }
 
+  getPlatformWalletAddress(): string {
+    return this.platformWallet;
+  }
+
   /**
    * Set storage instance for spending limit checks
    * Called after storage is initialized

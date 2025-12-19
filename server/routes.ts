@@ -234,6 +234,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/training/transcribe', isAuthenticated, upload.single('audio'), async (req: any, res) => {
+    const startTime = Date.now();
+
+    try {
+      if (!req.file?.buffer) {
+        return res.status(400).json({ message: 'No audio file provided' });
+      }
+
+      const audioBuffer = req.file.buffer;
+      console.log(`🎤 Training transcription started (${audioBuffer.length} bytes)`);
+
+      let userText = 'Voice input received';
+      try {
+        userText = await Promise.race([
+          groqService.transcribeAudio(audioBuffer),
+          new Promise<string>((_, reject) =>
+            setTimeout(() => reject(new Error('Transcription timeout')), 200)
+          ),
+        ]);
+      } catch (error) {
+        console.log('⚠️ Training lightning transcription failed, retrying without timeout');
+        try {
+          userText = await groqService.transcribeAudio(audioBuffer);
+        } catch (fallbackError) {
+          console.log('❌ Training transcription failed, using placeholder');
+          userText = 'Voice input received';
+        }
+      }
+
+      const processingTime = Date.now() - startTime;
+
+      res.json({
+        userText,
+        processingTime,
+        instant: processingTime <= 200,
+      });
+    } catch (error: any) {
+      console.error('❌ Training transcription failed:', error.message);
+      res.status(500).json({ message: 'Transcription failed' });
+    }
+  });
+
   app.get('/api/training/progress', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -622,7 +664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const isExpired = new Date() > new Date(queueEntry.expiresAt);
-      if (isExpired) {
+      if (isExpired && queueEntry.status === 'waiting') {
         await storage.removeMatchmakingEntry(userId);
         return res.json({
           inQueue: false,
@@ -631,14 +673,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (queueEntry.status === 'matched') {
+        const opponentUser = queueEntry.matchedWithUserId
+          ? await storage.getUser(queueEntry.matchedWithUserId)
+          : undefined;
+        const opponentProgress = queueEntry.matchedWithUserId
+          ? await storage.getUserProgress(queueEntry.matchedWithUserId)
+          : undefined;
+        const opponentStats = queueEntry.matchedWithUserId
+          ? await storage.getUserStats(queueEntry.matchedWithUserId)
+          : undefined;
+        const opponentElo = opponentProgress && opponentStats
+          ? 1000 + (opponentProgress.level * 50) + (opponentStats.totalWins * 10) - ((opponentStats.totalBattles - opponentStats.totalWins) * 5)
+          : undefined;
+
         return res.json({
           inQueue: true,
           matchFound: true,
+          matchId: queueEntry.id,
           opponentId: queueEntry.matchedWithUserId,
+          opponentName: opponentUser?.firstName || 'Anonymous Player',
+          opponentELO: opponentElo,
           battleId: queueEntry.battleId,
           matchedAt: queueEntry.matchedAt,
         });
       }
+
+      const queueTimeSeconds = Math.max(0, Math.floor((Date.now() - new Date(queueEntry.joinedAt).getTime()) / 1000));
 
       res.json({
         inQueue: true,
@@ -646,6 +706,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         queuedAt: queueEntry.joinedAt,
         expiresAt: queueEntry.expiresAt,
         queueType: queueEntry.queueType,
+        queueTime: queueTimeSeconds,
+        estimatedWait: 30,
       });
     } catch (error: any) {
       console.error('Error fetching matchmaking status:', error);
@@ -701,6 +763,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const skillRating = 1000 + (progress.level * 50);
 
       const entry = await storage.createMatchmakingEntry(userId, queueType, skillRating);
+      const opponentEntry = await storage.findRandomMatchmakingOpponent(userId, queueType);
+
+      if (opponentEntry) {
+        await storage.updateMatchmakingStatus(userId, 'matched', {
+          opponentUserId: opponentEntry.userId,
+        });
+        await storage.updateMatchmakingStatus(opponentEntry.userId, 'matched', {
+          opponentUserId: userId,
+        });
+      }
 
       res.json({
         success: true,
@@ -708,6 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         queuedAt: entry.joinedAt,
         expiresAt: entry.expiresAt,
         queueType: entry.queueType,
+        matchFound: Boolean(opponentEntry),
       });
     } catch (error: any) {
       console.error('Error joining matchmaking queue:', error);
@@ -740,6 +813,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!queueEntry || queueEntry.status !== 'matched') {
         return res.status(404).json({ error: 'No match found' });
       }
+      if (queueEntry.id !== matchId) {
+        return res.status(400).json({ error: 'Match is no longer available' });
+      }
 
       const opponentUserId = queueEntry.matchedWithUserId;
       if (!opponentUserId) {
@@ -759,6 +835,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await storage.updateMatchmakingStatus(userId, 'matched', {
         opponentUserId,
+        battleId: battle.id,
+      });
+      await storage.updateMatchmakingStatus(opponentUserId, 'matched', {
+        opponentUserId: userId,
         battleId: battle.id,
       });
 
@@ -2802,7 +2882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         txType: 'battle_reward',
         amount: "0.10", // Battle win reward amount (0.1 USDC)
         toAddress: walletAddress,
-        fromAddress: arcBlockchainService['platformWallet'] || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        fromAddress: arcBlockchainService.getPlatformWalletAddress(),
         status: 'confirmed',
         blockNumber: arcResult.blockNumber,
         gasUsedUSDC: arcResult.gasUsedUSDC,
@@ -2922,11 +3002,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const winRate = totalBattles > 0 ? (totalWins / totalBattles) * 100 : 0;
         const averageScore = totalWins > 0 ? (totalWins / totalBattles) * 100 : 0;
         const totalPoints = tournamentsWon * 1000 + (winRate * 10);
+        const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || 'Anonymous';
         
         return {
           rank: index + 1,
           userId: user.id,
-          username: `${user.firstName} ${user.lastName}`,
+          username: displayName,
           tournamentsWon,
           tournamentsPlayed: totalBattles,
           winRate: Math.round(winRate * 10) / 10,
@@ -4347,7 +4428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         txType: 'stake_deposit',
         amount: stakeAmount,
         fromAddress: walletAddress,
-        toAddress: depositTx.txHash, // Platform wallet
+        toAddress: arcBlockchainService.getPlatformWalletAddress(),
         status: depositTx.status,
         blockNumber: depositTx.blockNumber,
         gasUsedUSDC: depositTx.gasUsedUSDC,
@@ -4422,7 +4503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           txHash: payoutTx.txHash,
           txType: 'stake_payout',
           amount: payout,
-          fromAddress: payoutTx.txHash, // Platform wallet
+          fromAddress: arcBlockchainService.getPlatformWalletAddress(),
           toAddress: walletAddress,
           status: payoutTx.status,
           blockNumber: payoutTx.blockNumber,
@@ -4557,7 +4638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         txHash: prizeTx.txHash,
         txType: 'tournament_prize',
         amount: prizeAmount,
-        fromAddress: prizeTx.txHash, // Platform wallet
+        fromAddress: arcBlockchainService.getPlatformWalletAddress(),
         toAddress: walletAddress,
         status: prizeTx.status,
         blockNumber: prizeTx.blockNumber,

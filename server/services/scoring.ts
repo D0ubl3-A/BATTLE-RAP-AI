@@ -9,6 +9,11 @@ export class ScoringService {
     console.log('🎯 ScoringService initialized with PhoneticRhymeAnalyzer');
   }
 
+  adjustScoreForEffort(text: string, score: number): number {
+    const { multiplier, hardCap } = this.getEffortPenalty(text);
+    return Math.min(hardCap, Math.round(score * multiplier));
+  }
+
   calculateRhymeDensity(text: string, isFinalScore: boolean = false, battleId?: string): number {
     // Use the advanced phonetic analyzer for accurate rhyme detection
     const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
@@ -961,13 +966,13 @@ export class ScoringService {
     console.log(`🏆 Scoring round ${isFinalScore ? 'FINAL BATTLE SCORES' : 'preview'} with advanced phonetic analysis...`);
     
     // CRITICAL: Final battle scores always get advanced analysis with no rate limiting
-    const userRhyme = this.calculateRhymeDensity(userVerse, isFinalScore, battleId);
-    const userFlow = this.calculateFlowQuality(userVerse, isFinalScore, battleId);
-    const userCreativity = this.calculateCreativity(userVerse, isFinalScore, battleId);
+    const userRhymeRaw = this.calculateRhymeDensity(userVerse, isFinalScore, battleId);
+    const userFlowRaw = this.calculateFlowQuality(userVerse, isFinalScore, battleId);
+    const userCreativityRaw = this.calculateCreativity(userVerse, isFinalScore, battleId);
     
-    const aiRhyme = this.calculateRhymeDensity(aiVerse, isFinalScore, battleId);
-    const aiFlow = this.calculateFlowQuality(aiVerse, isFinalScore, battleId);
-    const aiCreativity = this.calculateCreativity(aiVerse, isFinalScore, battleId);
+    const aiRhymeRaw = this.calculateRhymeDensity(aiVerse, isFinalScore, battleId);
+    const aiFlowRaw = this.calculateFlowQuality(aiVerse, isFinalScore, battleId);
+    const aiCreativityRaw = this.calculateCreativity(aiVerse, isFinalScore, battleId);
     
     // DYNAMIC BALANCED SCORING: Excel at different techniques at different times
     // Perfect balance across ALL battle rap techniques known to the genre
@@ -985,8 +990,15 @@ export class ScoringService {
     const aiBalancedScore = this.calculateBalancedScore(aiComponents, aiWeights);
     
     // Use pure calculated scores - no artificial minimums or maximums
-    const userScore = Math.round(Math.max(0, userBalancedScore));
-    const aiScore = Math.round(aiBalancedScore);
+    const userScore = Math.round(Math.max(0, this.adjustScoreForEffort(userVerse, userBalancedScore)));
+    const aiScore = Math.round(Math.max(0, this.adjustScoreForEffort(aiVerse, aiBalancedScore)));
+
+    const userRhyme = this.adjustScoreForEffort(userVerse, userRhymeRaw);
+    const userFlow = this.adjustScoreForEffort(userVerse, userFlowRaw);
+    const userCreativity = this.adjustScoreForEffort(userVerse, userCreativityRaw);
+    const aiRhyme = this.adjustScoreForEffort(aiVerse, aiRhymeRaw);
+    const aiFlow = this.adjustScoreForEffort(aiVerse, aiFlowRaw);
+    const aiCreativity = this.adjustScoreForEffort(aiVerse, aiCreativityRaw);
 
     if (isFinalScore) {
       console.log(`🏆 FINAL BATTLE SCORES: User (R:${userRhyme}, F:${userFlow}, C:${userCreativity}) = ${userScore} vs AI (R:${aiRhyme}, F:${aiFlow}, C:${aiCreativity}) = ${aiScore}`);
@@ -1147,7 +1159,38 @@ export class ScoringService {
     
     console.log(`🎯 Score combination: Rhyme ${rhyme}/100 (35%), Flow ${flow}/100 (35%), Creativity ${creativity}/100 (30%) = ${Math.round(combinedScore)}/100`);
     
-    return Math.max(15, Math.min(100, Math.round(combinedScore)));
+    return Math.max(0, Math.min(100, Math.round(combinedScore)));
+  }
+
+  private getEffortPenalty(text: string): { multiplier: number; hardCap: number } {
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const uniqueWords = new Set(words).size;
+    const diversityRatio = wordCount > 0 ? uniqueWords / wordCount : 0;
+
+    let multiplier = 1;
+    let hardCap = 100;
+
+    if (wordCount < 4) {
+      multiplier = 0;
+      hardCap = 5;
+    } else if (wordCount < 8) {
+      multiplier = 0.2;
+      hardCap = 15;
+    } else if (wordCount < 15) {
+      multiplier = 0.4;
+      hardCap = 30;
+    } else if (wordCount < 30) {
+      multiplier = 0.7;
+      hardCap = 60;
+    }
+
+    if (diversityRatio < 0.35) {
+      multiplier = Math.max(0, multiplier - 0.2);
+      hardCap = Math.min(hardCap, 40);
+    }
+
+    return { multiplier, hardCap };
   }
   
   // Additional component calculators for perfect balance

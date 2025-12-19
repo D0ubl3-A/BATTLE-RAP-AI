@@ -45,23 +45,28 @@ export class RealtimeAnalysisService {
     }
 
     // Basic scoring analysis (always fast)
-    const rhymeDensity = scoringService.calculateRhymeDensity(
+    const rhymeDensityRaw = scoringService.calculateRhymeDensity(
       text, 
       options.isFinalScore || false, 
       options.battleId
     );
-    const flowQuality = scoringService.calculateFlowQuality(
+    const flowQualityRaw = scoringService.calculateFlowQuality(
       text, 
       options.isFinalScore || false, 
       options.battleId
     );
-    const creativity = scoringService.calculateCreativity(
+    const creativityRaw = scoringService.calculateCreativity(
       text, 
       options.isFinalScore || false, 
       options.battleId
     );
 
-    const score = Math.round((rhymeDensity * 0.35) + (flowQuality * 0.35) + (creativity * 0.30));
+    const rhymeDensity = scoringService.adjustScoreForEffort(text, rhymeDensityRaw);
+    const flowQuality = scoringService.adjustScoreForEffort(text, flowQualityRaw);
+    const creativity = scoringService.adjustScoreForEffort(text, creativityRaw);
+
+    const rawScore = Math.round((rhymeDensityRaw * 0.35) + (flowQualityRaw * 0.35) + (creativityRaw * 0.30));
+    const score = scoringService.adjustScoreForEffort(text, rawScore);
 
     // Generate instant feedback based on scores
     const feedback = this.generateFeedback(rhymeDensity, flowQuality, creativity);

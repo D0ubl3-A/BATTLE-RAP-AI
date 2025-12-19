@@ -5,15 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap, Brain, Lightbulb } from "lucide-react";
+import { BookOpen, Lock, CheckCircle2, Trophy, Star, Target, Zap, Brain, Lightbulb, Mic, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigation } from "@/components/navigation";
 import { StreamingAudioPlayer } from "@/components/streaming-audio-player";
 import { useStreamingAudio } from "@/hooks/use-streaming-audio";
+import { RecordingPanel } from "@/components/recording-panel";
 
 interface TrainingLesson {
   id: string;
@@ -97,6 +100,9 @@ export default function Training() {
   const [showLessonDialog, setShowLessonDialog] = useState(false);
   const [showCoachingDialog, setShowCoachingDialog] = useState(false);
   const [userResponse, setUserResponse] = useState("");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [autoCoachFromVoice, setAutoCoachFromVoice] = useState(true);
+  const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const [coachingFeedback, setCoachingFeedback] = useState<CoachingFeedback | null>(null);
   const { toast } = useToast();
   
@@ -214,6 +220,51 @@ export default function Training() {
       return;
     }
     coachingMutation.mutate(userResponse);
+  };
+
+  const handleVoiceRecordingStart = () => {
+    setVoiceTranscript("");
+  };
+
+  const handleVoiceRecordingComplete = async (recording: { blob: Blob; duration: number; url: string }) => {
+    setIsTranscribingVoice(true);
+    try {
+      const formData = new FormData();
+      formData.append("audio", recording.blob, "training-recording.wav");
+
+      const res = await fetch("/api/training/transcribe", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        throw new Error("Voice transcription failed");
+      }
+
+      const data = await res.json();
+      const transcript = data.userText?.trim() || "";
+
+      if (!transcript) {
+        throw new Error("Empty transcription");
+      }
+
+      setVoiceTranscript(transcript);
+      setUserResponse(transcript);
+
+      if (autoCoachFromVoice) {
+        coachingMutation.mutate(transcript);
+      }
+    } catch (error) {
+      console.error("Voice coaching transcription error:", error);
+      toast({
+        title: "Voice Coach Error",
+        description: "Couldn't transcribe your recording. Try again or use text input.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTranscribingVoice(false);
+    }
   };
 
   const handleStartPractice = () => {
@@ -714,6 +765,64 @@ export default function Training() {
                         ) : 'Get AI Coaching'}
                       </Button>
                     </div>
+
+                    <div className="glass-panel p-6 rounded-lg neon-border-magenta">
+                      <div className="flex items-start gap-3 mb-4">
+                        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                          <Mic className="h-6 w-6 text-neon-magenta flex-shrink-0" />
+                        </motion.div>
+                        <div className="flex-1">
+                          <h4 className="font-orbitron font-semibold text-lg text-prism-cyan flex items-center gap-2">
+                            Voice Assistant Coach
+                            <Volume2 className="h-4 w-4 text-prism-cyan" />
+                          </h4>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Speak your bars and get instant coaching with voice playback.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 mb-4">
+                        <div>
+                          <Label htmlFor="auto-coach-voice" className="text-sm text-gray-200">
+                            Auto-coach after recording
+                          </Label>
+                          <p className="text-xs text-gray-500">Hands-free feedback after each take.</p>
+                        </div>
+                        <Switch
+                          id="auto-coach-voice"
+                          checked={autoCoachFromVoice}
+                          onCheckedChange={setAutoCoachFromVoice}
+                        />
+                      </div>
+
+                      <RecordingPanel
+                        onRecordingStart={handleVoiceRecordingStart}
+                        onRecordingComplete={handleVoiceRecordingComplete}
+                      />
+
+                      <div className="mt-4 rounded-lg border border-steel-gray/40 bg-steel-gray/40 p-3">
+                        <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                          <span>Voice Transcript</span>
+                          {isTranscribingVoice && <span className="text-prism-cyan">Transcribing...</span>}
+                        </div>
+                        <p className="text-sm text-gray-200 min-h-[40px]">
+                          {voiceTranscript || "Record a take to see your words here."}
+                        </p>
+                      </div>
+
+                      {!autoCoachFromVoice && voiceTranscript && (
+                        <Button
+                          onClick={() => coachingMutation.mutate(voiceTranscript)}
+                          disabled={coachingMutation.isPending}
+                          className="w-full mt-4 bg-gradient-to-r from-neon-magenta to-pink-600 hover:from-pink-600 hover:to-neon-magenta text-white font-orbitron py-2"
+                          size="sm"
+                        >
+                          <Mic className="h-4 w-4 mr-2" />
+                          Coach My Voice Take
+                        </Button>
+                      )}
+                    </div>
                   </motion.div>
 
                   <motion.div
@@ -764,6 +873,12 @@ export default function Training() {
                 </DialogHeader>
 
                 <div className="space-y-4 mt-6">
+                  {voiceTranscript && (
+                    <div className="glass-panel p-4 rounded-lg border border-steel-gray/40 bg-steel-gray/40">
+                      <p className="text-xs text-gray-400 mb-2">Voice Transcript</p>
+                      <p className="text-sm text-gray-200">{voiceTranscript}</p>
+                    </div>
+                  )}
                   {/* Score */}
                   <div className="glass-panel p-4 rounded-lg neon-border-magenta">
                     <div className="flex items-center justify-between">

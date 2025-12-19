@@ -95,6 +95,9 @@ export function useAudioRecorder() {
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunks.push(event.data);
+          if (window.audioChunkCallback) {
+            window.audioChunkCallback(event.data);
+          }
         }
       };
       
@@ -112,7 +115,7 @@ export function useAudioRecorder() {
       };
       
       // Start recording
-      mediaRecorderRef.current.start();
+      mediaRecorderRef.current.start(500);
       setIsRecording(true);
       setRecordingDuration(0);
       
@@ -227,5 +230,6 @@ export function useAudioRecorder() {
 declare global {
   interface Window {
     audioRecordingCallback?: (recording: AudioRecording) => void;
+    audioChunkCallback?: (chunk: Blob) => void;
   }
 }
