@@ -3,6 +3,7 @@ export interface AdCampaign {
   title: string;
   description: string;
   rewardValue: number; // Arc/Credits earned by user watching ad
+  arcContributionUSDC: string; // USDC contribution to Arc rewards pool per completion
   duration: number; // seconds
   enabled: boolean;
   createdAt: Date;
@@ -33,6 +34,7 @@ export class AdsService {
       title: 'Battle Pass Premium',
       description: 'Unlock premium features',
       rewardValue: 50,
+      arcContributionUSDC: "0.02",
       duration: 30,
       enabled: true,
       createdAt: new Date(),
@@ -42,6 +44,7 @@ export class AdsService {
       title: 'Cosmetics Shop',
       description: 'Discover new character skins',
       rewardValue: 25,
+      arcContributionUSDC: "0.01",
       duration: 15,
       enabled: true,
       createdAt: new Date(),
@@ -51,6 +54,7 @@ export class AdsService {
       title: 'Tournament Sign-up',
       description: 'Join competitive tournaments',
       rewardValue: 75,
+      arcContributionUSDC: "0.03",
       duration: 45,
       enabled: true,
       createdAt: new Date(),
@@ -62,6 +66,10 @@ export class AdsService {
    */
   getAvailableAds(): AdCampaign[] {
     return this.campaigns.filter(c => c.enabled);
+  }
+
+  getCampaignById(campaignId: string): AdCampaign | undefined {
+    return this.campaigns.find(campaign => campaign.id === campaignId);
   }
 
   /**

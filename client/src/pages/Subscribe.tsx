@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { useMutation } from '@tanstack/react-query';
@@ -15,26 +15,40 @@ const stripePromise: Promise<Stripe | null> | null = import.meta.env.VITE_STRIPE
   ? loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY)
   : null;
 
+const CREDIT_PACKAGES = {
+  1000: { price: 1.0, label: '1,000 Credits' },
+  150000: { price: 100.0, label: '150,000 Credits' },
+} as const;
+
+const getCreditPackage = (creditAmount?: number) =>
+  creditAmount ? CREDIT_PACKAGES[creditAmount as keyof typeof CREDIT_PACKAGES] : undefined;
+
 interface PaymentFormProps {
   tier?: 'premium' | 'pro';
   paymentMethod: 'stripe' | 'cashapp';
-  purchaseType: 'subscription' | 'battles';
+  purchaseType: 'subscription' | 'battles' | 'credits';
   battleCount?: number;
+  creditAmount?: number;
 }
 
-function PaymentForm({ tier, paymentMethod, purchaseType, battleCount }: PaymentFormProps) {
+function PaymentForm({ tier, paymentMethod, purchaseType, battleCount, creditAmount }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentSent, setPaymentSent] = useState(false);
+  const creditPackage = getCreditPackage(creditAmount);
 
   if (paymentMethod === 'cashapp') {
-    const amount = purchaseType === 'battles' 
+    const amount = purchaseType === 'battles'
       ? (battleCount === 1500 ? '$100.00' : '$1.00')
+      : purchaseType === 'credits'
+      ? `$${(creditPackage?.price || 0).toFixed(2)}`
       : `$${tier === 'premium' ? '9.99' : '19.99'}`;
-    const description = purchaseType === 'battles' 
+    const description = purchaseType === 'battles'
       ? (battleCount === 1500 ? '1,500 Battle Pack' : '10 Battle Pack')
+      : purchaseType === 'credits'
+      ? `${creditPackage?.label || 'Credit Pack'}`
       : `${tier === 'premium' ? 'Premium' : 'Pro'} Subscription`;
     
     const handleCashAppPayment = () => {
@@ -113,6 +127,8 @@ function PaymentForm({ tier, paymentMethod, purchaseType, battleCount }: Payment
       } else {
         const successMessage = purchaseType === 'battles' 
           ? "Battle pack purchased! 10 battles added to your account."
+          : purchaseType === 'credits'
+          ? `Credit pack purchased! ${creditAmount?.toLocaleString()} credits added to your account.`
           : `Welcome to ${tier === 'premium' ? 'Premium' : 'Pro'}! Enjoy unlimited battles.`;
         
         toast({
@@ -163,7 +179,9 @@ function PaymentForm({ tier, paymentMethod, purchaseType, battleCount }: Payment
         ) : (
           purchaseType === 'battles' ? 
             `Buy 10 Battles for $1.00` :
-            `Subscribe to ${tier === 'premium' ? 'Premium' : 'Pro'} - $${tier === 'premium' ? '9.99' : '19.99'}/month`
+            purchaseType === 'credits'
+            ? `Buy ${creditAmount?.toLocaleString()} Credits for $${(creditPackage?.price || 0).toFixed(2)}`
+            : `Subscribe to ${tier === 'premium' ? 'Premium' : 'Pro'} - $${tier === 'premium' ? '9.99' : '19.99'}/month`
         )}
       </Button>
     </motion.form>
@@ -173,9 +191,19 @@ function PaymentForm({ tier, paymentMethod, purchaseType, battleCount }: Payment
 export default function Subscribe() {
   const [tier, setTier] = useState<'premium' | 'pro'>('premium');
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'cashapp'>('stripe');
-  const [purchaseType, setPurchaseType] = useState<'subscription' | 'battles'>('subscription');
+  const [purchaseType, setPurchaseType] = useState<'subscription' | 'battles' | 'credits'>('subscription');
   const [clientSecret, setClientSecret] = useState<string>('');
+  const [creditAmount, setCreditAmount] = useState<number>(1000);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const purchase = params.get('purchase');
+
+    if (purchase === 'credits' || purchase === 'battles' || purchase === 'subscription') {
+      setPurchaseType(purchase);
+    }
+  }, []);
 
   const createSubscription = useMutation({
     mutationFn: async (data: { tier: 'premium' | 'pro'; paymentMethod: 'stripe' | 'cashapp' }) => {
@@ -232,6 +260,32 @@ export default function Subscribe() {
     },
   });
 
+  const createCreditPack = useMutation({
+    mutationFn: async (params: { creditAmount: number }) => {
+      const response = await apiRequest('POST', '/api/purchase-credits', {
+        creditAmount: params.creditAmount,
+        paymentMethod: paymentMethod,
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('🎉 Credit payment intent created:', data);
+      console.log('🔑 Client secret received:', !!data.clientSecret);
+      setClientSecret(data.clientSecret);
+      toast({
+        title: "Payment Ready",
+        description: "Please complete your credit pack purchase below.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Purchase Error",
+        description: error.message || "Failed to initiate credit purchase. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleTierSelect = (selectedTier: 'premium' | 'pro') => {
     setTier(selectedTier);
     setClientSecret('');
@@ -240,11 +294,13 @@ export default function Subscribe() {
     }
   };
 
-  const handlePurchaseTypeChange = (type: 'subscription' | 'battles') => {
+  const handlePurchaseTypeChange = (type: 'subscription' | 'battles' | 'credits') => {
     setPurchaseType(type);
     setClientSecret('');
     if (type === 'battles') {
       createBattlePack.mutate({ battleCount: 10 });
+    } else if (type === 'credits') {
+      createCreditPack.mutate({ creditAmount });
     } else {
       createSubscription.mutate({ tier, paymentMethod });
     }
@@ -255,6 +311,8 @@ export default function Subscribe() {
     setClientSecret('');
     if (purchaseType === 'battles') {
       createBattlePack.mutate({ battleCount: 10 });
+    } else if (purchaseType === 'credits') {
+      createCreditPack.mutate({ creditAmount });
     } else {
       createSubscription.mutate({ tier, paymentMethod: method });
     }
@@ -323,6 +381,18 @@ export default function Subscribe() {
               >
                 <Zap className="mr-2 h-5 w-5" />
                 10 Battles for $1
+              </Button>
+              <Button
+                variant={purchaseType === 'credits' ? 'default' : 'outline'}
+                onClick={() => handlePurchaseTypeChange('credits')}
+                className={`px-8 py-6 text-lg font-bold ${
+                  purchaseType === 'credits'
+                    ? 'gradient-primary-bg neon-border-magenta hover-lift'
+                    : 'glass-panel border-2 border-neon-magenta/50 text-neon-magenta hover:border-neon-magenta hover-lift'
+                }`}
+                data-testid="button-select-credits"
+              >
+                💰 Credit Packs
               </Button>
             </div>
           </motion.div>
@@ -485,6 +555,132 @@ export default function Subscribe() {
                         </>
                       ) : (
                         'Buy 1,500 Battles for $100'
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+          ) : purchaseType === 'credits' ? (
+            <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              >
+                <Card className="glass-panel neon-border-magenta text-white h-full hover-lift">
+                  <CardHeader className="text-center pb-6">
+                    <CardTitle className="text-neon-magenta text-3xl font-orbitron flex items-center justify-center gap-2">
+                      💰 Starter Credits
+                    </CardTitle>
+                    <CardDescription className="text-gray-300 text-base">
+                      Great for quick boosts
+                    </CardDescription>
+                    <div className="text-4xl font-orbitron font-bold text-white mt-4">
+                      $1.00<span className="text-lg text-gray-400"> for 1,000 credits</span>
+                    </div>
+                    <p className="text-sm text-gray-400">100 credits per battle</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <ul className="space-y-3 text-gray-200">
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-neon-magenta" />
+                        <span className="stat-badge">⚡ 1,000 credits instantly</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-neon-magenta" />
+                        <span>🎤 Use on battles or training</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-neon-magenta" />
+                        <span>💳 One-time payment</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-neon-magenta" />
+                        <span>🚀 No subscription needed</span>
+                      </li>
+                    </ul>
+                    <Button
+                      onClick={() => {
+                        setCreditAmount(1000);
+                        createCreditPack.mutate({ creditAmount: 1000 });
+                      }}
+                      disabled={createCreditPack.isPending}
+                      className="w-full gradient-primary-bg neon-border-magenta hover-lift font-bold text-lg py-6"
+                      data-testid="button-purchase-credits-1000"
+                    >
+                      {createCreditPack.isPending && creditAmount === 1000 ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Setting up...
+                        </>
+                      ) : (
+                        'Buy 1,000 Credits for $1'
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              >
+                <Card className="glass-card gradient-card-bg neon-border-cyan text-white h-full transform scale-105 glow-pulse-cyan relative">
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                    <span className="stat-badge bg-gradient-primary-bg text-white px-4 py-1.5 text-sm font-bold">
+                      BEST VALUE
+                    </span>
+                  </div>
+                  <CardHeader className="text-center pb-6">
+                    <CardTitle className="text-prism-cyan text-3xl font-orbitron flex items-center justify-center gap-2">
+                      🔥 Mega Credits
+                    </CardTitle>
+                    <CardDescription className="text-gray-200 text-base font-semibold">
+                      Stock up for marathon sessions
+                    </CardDescription>
+                    <div className="text-4xl font-orbitron font-bold text-white mt-4">
+                      $100.00<span className="text-lg text-gray-300"> for 150,000 credits</span>
+                    </div>
+                    <p className="text-sm text-green-400 font-semibold">Unlock 1,500 battles worth of credits</p>
+                    <p className="text-xs text-gray-400">Save big vs single packs</p>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <ul className="space-y-3 text-gray-100">
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-prism-cyan" />
+                        <span className="stat-badge">🚀 150,000 credits</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-prism-cyan" />
+                        <span>🎤 Use on battles or training</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-prism-cyan" />
+                        <span>💳 One-time payment</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-prism-cyan" />
+                        <span>🎯 Best value option</span>
+                      </li>
+                    </ul>
+                    <Button
+                      onClick={() => {
+                        setCreditAmount(150000);
+                        createCreditPack.mutate({ creditAmount: 150000 });
+                      }}
+                      disabled={createCreditPack.isPending}
+                      className="w-full gradient-primary-bg neon-border-cyan hover-lift font-bold text-lg py-6"
+                      data-testid="button-purchase-credits-150000"
+                    >
+                      {createCreditPack.isPending && creditAmount === 150000 ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Setting up...
+                        </>
+                      ) : (
+                        'Buy 150,000 Credits for $100'
                       )}
                     </Button>
                   </CardContent>
@@ -673,11 +869,13 @@ export default function Subscribe() {
               transition={{ duration: 0.5, delay: 0.2 }}
             >
               <CardTitle className="text-white text-3xl font-orbitron font-bold mb-2">
-                COMPLETE YOUR {purchaseType === 'battles' ? 'PURCHASE' : 'SUBSCRIPTION'}
+                COMPLETE YOUR {purchaseType === 'subscription' ? 'SUBSCRIPTION' : 'PURCHASE'}
               </CardTitle>
               <CardDescription className="text-gray-200 text-base font-semibold">
                 {purchaseType === 'battles' 
                   ? '10 Battle Pack - $1.00'
+                  : purchaseType === 'credits'
+                  ? `${creditAmount.toLocaleString()} Credits - $${(getCreditPackage(creditAmount)?.price || 0).toFixed(2)}`
                   : (tier === 'premium' ? 'Premium Plan - $9.99/month' : 'Pro Plan - $19.99/month')}
               </CardDescription>
               <div className="mt-3">
@@ -690,7 +888,13 @@ export default function Subscribe() {
           <CardContent>
             {stripePromise ? (
               <Elements stripe={stripePromise} options={stripeOptions}>
-                <PaymentForm tier={tier} paymentMethod={paymentMethod} purchaseType={purchaseType} battleCount={purchaseType === 'battles' ? 10 : undefined} />
+                <PaymentForm
+                  tier={tier}
+                  paymentMethod={paymentMethod}
+                  purchaseType={purchaseType}
+                  battleCount={purchaseType === 'battles' ? 10 : undefined}
+                  creditAmount={purchaseType === 'credits' ? creditAmount : undefined}
+                />
               </Elements>
             ) : (
               <motion.div 

@@ -3,6 +3,64 @@ import { platformWallets, walletTransactions, type PlatformWallet, type WalletTr
 import { eq, desc, sql } from "drizzle-orm";
 
 export class WalletService {
+  private async getRewardsPoolWallet(): Promise<PlatformWallet> {
+    let wallet = await this.getWallet('rewards_pool');
+
+    if (!wallet) {
+      await this.initializePlatformWallets();
+      wallet = await this.getWallet('rewards_pool');
+    }
+
+    if (!wallet) {
+      throw new Error('Rewards pool wallet not initialized');
+    }
+
+    return wallet;
+  }
+
+  async recordRewardsFunding(amount: string, description: string, metadata?: any): Promise<string> {
+    const rewardsPool = await this.getRewardsPoolWallet();
+
+    return this.recordTransaction(
+      rewardsPool.id,
+      'deposit',
+      parseFloat(amount).toFixed(6),
+      description,
+      metadata
+    );
+  }
+
+  async getRewardsPoolBalance(): Promise<string> {
+    const rewardsPool = await this.getRewardsPoolWallet();
+    return rewardsPool.balance;
+  }
+
+  async recordRewardsPayout(
+    amount: string,
+    description: string,
+    metadata?: any,
+    userId?: string,
+    txHash?: string
+  ): Promise<string> {
+    const rewardsPool = await this.getRewardsPoolWallet();
+    const balance = parseFloat(rewardsPool.balance);
+    const payoutAmount = parseFloat(amount);
+
+    if (balance < payoutAmount) {
+      throw new Error(`Rewards pool balance insufficient. Balance: $${rewardsPool.balance}`);
+    }
+
+    return this.recordTransaction(
+      rewardsPool.id,
+      'reward_payout',
+      `-${payoutAmount.toFixed(6)}`,
+      description,
+      metadata,
+      userId,
+      txHash
+    );
+  }
+
   async checkBalances(): Promise<{ alerts: string[]; balances: Record<string, string> }> {
     const allWallets = await db.select().from(platformWallets).where(eq(platformWallets.isActive, true));
     

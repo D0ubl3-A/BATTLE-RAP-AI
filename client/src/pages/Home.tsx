@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 
 import { SocialShare } from "@/components/SocialShare";
+import { AdBanner } from "@/components/ad-banner";
 // import { XPDisplay } from "@/components/XPDisplay"; // Temporarily disabled - needs React hooks debugging
 
 interface SubscriptionStatus {
@@ -111,6 +112,13 @@ export default function Home() {
             </div>
           </div>
         </motion.div>
+
+        <div className="mb-8">
+          <AdBanner
+            slot={import.meta.env.VITE_ADSENSE_HOME_SLOT || "0000000000"}
+            className="rounded-lg overflow-hidden"
+          />
+        </div>
 
         {/* Quick Stats Cards - Neon Apex Design */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
