@@ -156,15 +156,22 @@ export function WalletDashboard() {
 
     const impressionResponse = await apiRequest("POST", "/api/ads/impression", {
       campaignId: activeAd.id,
-      completed: true,
     });
 
     if (!impressionResponse.ok) {
       throw new Error("Failed to track ad impression");
     }
 
+    const impressionData = await impressionResponse.json();
+    const impression = impressionData?.impression;
+    if (!impression?.id || !impression?.rewardToken) {
+      throw new Error("Ad impression was not issued correctly");
+    }
+
     const rewardResponse = await apiRequest("POST", "/api/ads/claim-reward", {
       campaignId: activeAd.id,
+      impressionId: impression.id,
+      rewardToken: impression.rewardToken,
     });
 
     if (!rewardResponse.ok) {

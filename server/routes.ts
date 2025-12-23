@@ -4961,24 +4961,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ads/impression', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { campaignId, completed } = req.body;
+      const { campaignId } = req.body;
 
       if (!campaignId) {
         return res.status(400).json({ error: 'Campaign ID required' });
       }
 
-      const impression = await adsService.trackImpression(userId, campaignId, completed || false);
-
-      if (completed) {
-        const campaign = adsService.getCampaignById(campaignId);
-        if (campaign?.arcContributionUSDC) {
-          await walletService.recordRewardsFunding(
-            campaign.arcContributionUSDC,
-            `Ad revenue contribution: ${campaign.title}`,
-            { campaignId, userId }
-          );
-        }
+      const campaign = adsService.getCampaignById(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ error: 'Campaign not found' });
       }
+
+      const impression = await adsService.trackImpression(userId, campaignId);
 
       res.json({ impression });
     } catch (error: any) {
@@ -4991,10 +4985,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ads/claim-reward', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { campaignId } = req.body;
+      const { campaignId, impressionId, rewardToken } = req.body;
 
       if (!campaignId) {
         return res.status(400).json({ error: 'Campaign ID required' });
+      }
+
+      if (!impressionId || !rewardToken) {
+        return res.status(400).json({ error: 'Impression ID and reward token required' });
       }
 
       // Callback to update user credits
@@ -5007,7 +5005,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      const result = await adsService.claimAdReward(userId, campaignId, updateUserCallback);
+      const result = await adsService.claimAdReward(
+        userId,
+        campaignId,
+        impressionId,
+        rewardToken,
+        updateUserCallback
+      );
+      if (result.arcContributionUSDC) {
+        const campaign = adsService.getCampaignById(campaignId);
+        if (campaign) {
+          await walletService.recordRewardsFunding(
+            result.arcContributionUSDC,
+            `Ad revenue contribution: ${campaign.title}`,
+            { campaignId, userId }
+          );
+        }
+      }
       res.json(result);
     } catch (error: any) {
       console.error('Error claiming ad reward:', error);

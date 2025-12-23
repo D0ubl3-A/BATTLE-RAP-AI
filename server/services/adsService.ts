@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 export interface AdCampaign {
   id: string;
   title: string;
@@ -10,11 +12,13 @@ export interface AdCampaign {
 }
 
 export interface AdImpression {
+  id: string;
   userId: string;
   campaignId: string;
   timestamp: Date;
   completed: boolean;
   rewardClaimed: boolean;
+  rewardToken: string;
 }
 
 export interface AdRevenue {
@@ -26,6 +30,7 @@ export interface AdRevenue {
 export class AdsService {
   private impressions: Map<string, AdImpression[]> = new Map();
   private totalBattleSpending: number = 0; // Track all credits spent on battles
+  private impressionValidityMs = 15 * 60 * 1000;
   
   // Sample ad campaigns (can be stored in DB)
   private campaigns: AdCampaign[] = [
@@ -83,13 +88,29 @@ export class AdsService {
   /**
    * Track ad impression
    */
-  async trackImpression(userId: string, campaignId: string, completed: boolean): Promise<AdImpression> {
+  async trackImpression(userId: string, campaignId: string): Promise<AdImpression> {
+    const userImpressions = this.impressions.get(userId) || [];
+    const now = Date.now();
+    const activeImpression = userImpressions.find(
+      imp =>
+        imp.campaignId === campaignId &&
+        !imp.rewardClaimed &&
+        now - imp.timestamp.getTime() <= this.impressionValidityMs
+    );
+
+    if (activeImpression) {
+      console.log(`📺 Ad Impression: Reusing active impression for ${userId}, Campaign ${campaignId}`);
+      return activeImpression;
+    }
+
     const impression: AdImpression = {
+      id: randomUUID(),
       userId,
       campaignId,
       timestamp: new Date(),
-      completed,
+      completed: false,
       rewardClaimed: false,
+      rewardToken: randomUUID(),
     };
 
     if (!this.impressions.has(userId)) {
@@ -97,7 +118,7 @@ export class AdsService {
     }
     this.impressions.get(userId)!.push(impression);
 
-    console.log(`📺 Ad Impression: User ${userId}, Campaign ${campaignId}, Completed: ${completed}`);
+    console.log(`📺 Ad Impression: User ${userId}, Campaign ${campaignId}, Completed: false`);
     
     return impression;
   }
@@ -105,20 +126,42 @@ export class AdsService {
   /**
    * Claim reward for watching ad (funded by battle spending revenue)
    */
-  async claimAdReward(userId: string, campaignId: string, updateUserCallback: (userId: string, credits: number) => Promise<void>): Promise<{ reward: number; message: string }> {
+  async claimAdReward(
+    userId: string,
+    campaignId: string,
+    impressionId: string,
+    rewardToken: string,
+    updateUserCallback: (userId: string, credits: number) => Promise<void>
+  ): Promise<{ reward: number; message: string; arcContributionUSDC?: string }> {
     const campaign = this.campaigns.find(c => c.id === campaignId);
     if (!campaign) {
       throw new Error('Campaign not found');
     }
 
-    // Check if user watched the ad
     const userImpressions = this.impressions.get(userId) || [];
-    const adWatched = userImpressions.some(
-      imp => imp.campaignId === campaignId && imp.completed && !imp.rewardClaimed
+    const now = Date.now();
+    const impression = userImpressions.find(
+      candidate =>
+        candidate.id === impressionId &&
+        candidate.campaignId === campaignId &&
+        !candidate.rewardClaimed
     );
 
-    if (!adWatched) {
-      throw new Error('Ad not completed or already claimed');
+    if (!impression) {
+      throw new Error('Ad impression not found or already claimed');
+    }
+
+    if (impression.rewardToken !== rewardToken) {
+      throw new Error('Ad reward token invalid');
+    }
+
+    if (now - impression.timestamp.getTime() > this.impressionValidityMs) {
+      throw new Error('Ad impression expired, please watch a new ad');
+    }
+
+    const minimumWatchMs = campaign.duration * 1000;
+    if (now - impression.timestamp.getTime() < minimumWatchMs) {
+      throw new Error('Ad impression not yet eligible for reward');
     }
 
     // Check if revenue pool has enough to cover reward
@@ -127,12 +170,8 @@ export class AdsService {
     }
 
     // Mark impression as reward claimed
-    const impression = userImpressions.find(
-      imp => imp.campaignId === campaignId && imp.completed && !imp.rewardClaimed
-    );
-    if (impression) {
-      impression.rewardClaimed = true;
-    }
+    impression.completed = true;
+    impression.rewardClaimed = true;
 
     // Deduct from revenue pool and award to user
     this.totalBattleSpending -= campaign.rewardValue;
@@ -143,6 +182,7 @@ export class AdsService {
     return {
       reward: campaign.rewardValue,
       message: `Earned ${campaign.rewardValue} credits from ad! (Funded by battle spending)`,
+      arcContributionUSDC: campaign.arcContributionUSDC,
     };
   }
 
