@@ -5,6 +5,7 @@ import { Video, Gift, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface RewardedVideoAdProps {
+  onAdStarted?: () => Promise<void> | void;
   onRewardEarned: () => Promise<void> | void;
   rewardType: 'battle' | 'battles' | 'credits';
   rewardAmount: number;
@@ -14,15 +15,15 @@ interface RewardedVideoAdProps {
  * Rewarded Video Ad Component
  * Free users can watch ads to earn battles or credits
  */
-export function RewardedVideoAd({ onRewardEarned, rewardType, rewardAmount }: RewardedVideoAdProps) {
+export function RewardedVideoAd({ onAdStarted, onRewardEarned, rewardType, rewardAmount }: RewardedVideoAdProps) {
   const [isWatching, setIsWatching] = useState(false);
   const [adCompleted, setAdCompleted] = useState(false);
   const { toast } = useToast();
 
   const handleWatchAd = async () => {
-    setIsWatching(true);
-    
     try {
+      setIsWatching(true);
+      await onAdStarted?.();
       // In production, integrate with Google AdMob rewarded video
       // For now, simulate ad watching
       

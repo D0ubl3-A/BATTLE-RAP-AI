@@ -38,12 +38,18 @@ interface AdCampaign {
   duration: number;
 }
 
+interface AdImpression {
+  id: string;
+  rewardToken: string;
+}
+
 export function WalletDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [displayBalance, setDisplayBalance] = useState(0);
+  const [activeImpression, setActiveImpression] = useState<AdImpression | null>(null);
 
   // Fetch store credits (in-app credits for battles)
   const { data: storeCredit, isLoading: storeCreditLoading } = useQuery<StoreCreditData>({
@@ -149,7 +155,7 @@ export function WalletDashboard() {
     );
   };
 
-  const handleRewardEarned = async () => {
+  const handleAdStarted = async () => {
     if (!activeAd) {
       throw new Error("No ad campaign available");
     }
@@ -168,10 +174,22 @@ export function WalletDashboard() {
       throw new Error("Ad impression was not issued correctly");
     }
 
+    setActiveImpression({ id: impression.id, rewardToken: impression.rewardToken });
+  };
+
+  const handleRewardEarned = async () => {
+    if (!activeAd) {
+      throw new Error("No ad campaign available");
+    }
+
+    if (!activeImpression?.id || !activeImpression?.rewardToken) {
+      throw new Error("Ad impression was not issued correctly");
+    }
+
     const rewardResponse = await apiRequest("POST", "/api/ads/claim-reward", {
       campaignId: activeAd.id,
-      impressionId: impression.id,
-      rewardToken: impression.rewardToken,
+      impressionId: activeImpression.id,
+      rewardToken: activeImpression.rewardToken,
     });
 
     if (!rewardResponse.ok) {
@@ -179,6 +197,7 @@ export function WalletDashboard() {
       throw new Error(error?.error || "Failed to claim ad reward");
     }
 
+    setActiveImpression(null);
     await queryClient.invalidateQueries({ queryKey: ["/api/store-credit/balance"] });
   };
 
@@ -271,6 +290,7 @@ export function WalletDashboard() {
 
       {activeAd && (
         <RewardedVideoAd
+          onAdStarted={handleAdStarted}
           onRewardEarned={handleRewardEarned}
           rewardType="credits"
           rewardAmount={activeAd.rewardValue}
