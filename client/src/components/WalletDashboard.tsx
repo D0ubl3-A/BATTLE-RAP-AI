@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Wallet, Copy, Check, ExternalLink, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { RewardedVideoAd } from "@/components/rewarded-video-ad";
+import { AdBanner } from "@/components/ad-banner";
+import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 interface WalletData {
   balance: string;
@@ -27,8 +31,16 @@ interface Transaction {
   confirmedAt?: string;
 }
 
+interface AdCampaign {
+  id: string;
+  title: string;
+  rewardValue: number;
+  duration: number;
+}
+
 export function WalletDashboard() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [displayBalance, setDisplayBalance] = useState(0);
@@ -47,6 +59,12 @@ export function WalletDashboard() {
   const { data: transactions, isLoading: txLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/arc/wallet/transactions"],
   });
+
+  const { data: adData } = useQuery<{ ads: AdCampaign[] }>({
+    queryKey: ["/api/ads"],
+  });
+
+  const activeAd = adData?.ads?.[0];
 
   // Count-up animation for balance
   useEffect(() => {
@@ -129,6 +147,32 @@ export function WalletDashboard() {
         style={{ filter: 'drop-shadow(0 0 6px hsla(180, 100%, 50%, 0.6))' }}
       />
     );
+  };
+
+  const handleRewardEarned = async () => {
+    if (!activeAd) {
+      throw new Error("No ad campaign available");
+    }
+
+    const impressionResponse = await apiRequest("POST", "/api/ads/impression", {
+      campaignId: activeAd.id,
+      completed: true,
+    });
+
+    if (!impressionResponse.ok) {
+      throw new Error("Failed to track ad impression");
+    }
+
+    const rewardResponse = await apiRequest("POST", "/api/ads/claim-reward", {
+      campaignId: activeAd.id,
+    });
+
+    if (!rewardResponse.ok) {
+      const error = await rewardResponse.json();
+      throw new Error(error?.error || "Failed to claim ad reward");
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["/api/store-credit/balance"] });
   };
 
   if (walletLoading) {
@@ -217,6 +261,33 @@ export function WalletDashboard() {
           )}
         </CardContent>
       </motion.div>
+
+      {activeAd && (
+        <RewardedVideoAd
+          onRewardEarned={handleRewardEarned}
+          rewardType="credits"
+          rewardAmount={activeAd.rewardValue}
+        />
+      )}
+
+      <div className="glass-card neon-border-magenta p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-lg font-orbitron text-white">Need more credits?</h3>
+            <p className="text-sm text-gray-400">Buy credits instantly to keep battling and training.</p>
+          </div>
+          <Link to="/subscribe?purchase=credits">
+            <Button className="gradient-primary-bg hover-lift text-white font-orbitron">
+              Buy Credits
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      <AdBanner
+        slot={import.meta.env.VITE_ADSENSE_WALLET_SLOT || "0000000000"}
+        className="rounded-lg overflow-hidden"
+      />
 
       {/* Arc Wallet Card - Neon Apex Hero */}
       <motion.div

@@ -5,7 +5,7 @@ import { Video, Gift, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface RewardedVideoAdProps {
-  onRewardEarned: () => void;
+  onRewardEarned: () => Promise<void> | void;
   rewardType: 'battle' | 'battles' | 'credits';
   rewardAmount: number;
 }
@@ -33,7 +33,7 @@ export function RewardedVideoAd({ onRewardEarned, rewardType, rewardAmount }: Re
       setIsWatching(false);
       
       // Award the reward
-      onRewardEarned();
+      await onRewardEarned();
       
       toast({
         title: "🎁 Reward Earned!",

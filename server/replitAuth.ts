@@ -80,124 +80,123 @@ async function upsertUser(
   });
 }
 
+function setupLocalAuth(app: Express) {
+  // Local strategy: email/password authentication with bcrypt
+  passport.use(new LocalStrategy.Strategy({
+    usernameField: 'email',
+    passwordField: 'password'
+  }, async (email: string, password: string, done: any) => {
+    try {
+      // Find user by email
+      const user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        return done(null, false, { message: 'Invalid email or password' });
+      }
+      
+      // Verify password
+      if (!user.passwordHash) {
+        return done(null, false, { message: 'Invalid email or password' });
+      }
+      
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      
+      if (!isValidPassword) {
+        return done(null, false, { message: 'Invalid email or password' });
+      }
+      
+      // Create session user object
+      const sessionUser: any = { id: user.id };
+      sessionUser.claims = { sub: user.id, email: user.email };
+      sessionUser.expires_at = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365; // 1 year
+      
+      return done(null, sessionUser);
+    } catch (err) {
+      return done(err as any);
+    }
+  }));
+
+  passport.serializeUser((user: Express.User, cb) => cb(null, user));
+  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+
+  // Registration endpoint for local auth
+  app.post('/api/register', express.json(), async (req, res, next) => {
+    try {
+      const { email, password, firstName, lastName } = req.body;
+      
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format' });
+      }
+      
+      // Validate password length
+      if (password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+      }
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email already registered' });
+      }
+      
+      // Hash password
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      // Create user with hashed password
+      const newUser = await storage.upsertUser({
+        email,
+        passwordHash,
+        firstName: firstName || email.split('@')[0],
+        lastName: lastName || '',
+        profileImageUrl: '',
+        subscriptionTier: 'free',
+        subscriptionStatus: 'free',
+        battlesRemaining: 3,
+        lastBattleReset: new Date(),
+      });
+      
+      // Auto-login after registration
+      const sessionUser: any = { id: newUser.id };
+      sessionUser.claims = { sub: newUser.id, email: newUser.email };
+      sessionUser.expires_at = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365;
+      
+      req.login(sessionUser, (err: any) => {
+        if (err) return next(err);
+        res.json({ ok: true, user: { id: newUser.id, email: newUser.email } });
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // JSON login endpoint for local auth
+  app.post('/api/login', express.json(), (req, res, next) => {
+    passport.authenticate('local', (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message || 'Invalid credentials' });
+      req.login(user, (err2: any) => {
+        if (err2) return next(err2);
+        res.json({ ok: true, user });
+      });
+    })(req, res, next);
+  });
+}
+
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
-  // If AUTH_PROVIDER is set to 'local' or REPLIT_DOMAINS is not present, configure a local strategy
-  if (!hasReplit || authProvider === 'local') {
-    // Local strategy: email/password authentication with bcrypt
-    passport.use(new LocalStrategy.Strategy({
-      usernameField: 'email',
-      passwordField: 'password'
-    }, async (email: string, password: string, done: any) => {
-      try {
-        // Find user by email
-        const user = await storage.getUserByEmail(email);
-        
-        if (!user) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
-        
-        // Verify password
-        if (!user.passwordHash) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
-        
-        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-        
-        if (!isValidPassword) {
-          return done(null, false, { message: 'Invalid email or password' });
-        }
-        
-        // Create session user object
-        const sessionUser: any = { id: user.id };
-        sessionUser.claims = { sub: user.id, email: user.email };
-        sessionUser.expires_at = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365; // 1 year
-        
-        return done(null, sessionUser);
-      } catch (err) {
-        return done(err as any);
-      }
-    }));
+  setupLocalAuth(app);
 
-    passport.serializeUser((user: Express.User, cb) => cb(null, user));
-    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
-
-    // Registration endpoint for local auth
-    app.post('/api/register', express.json(), async (req, res, next) => {
-      try {
-        const { email, password, firstName, lastName } = req.body;
-        
-        // Validate input
-        if (!email || !password) {
-          return res.status(400).json({ message: 'Email and password are required' });
-        }
-        
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-          return res.status(400).json({ message: 'Invalid email format' });
-        }
-        
-        // Validate password length
-        if (password.length < 6) {
-          return res.status(400).json({ message: 'Password must be at least 6 characters' });
-        }
-        
-        // Check if user already exists
-        const existingUser = await storage.getUserByEmail(email);
-        if (existingUser) {
-          return res.status(400).json({ message: 'Email already registered' });
-        }
-        
-        // Hash password
-        const passwordHash = await bcrypt.hash(password, 10);
-        
-        // Create user with hashed password
-        const newUser = await storage.upsertUser({
-          email,
-          passwordHash,
-          firstName: firstName || email.split('@')[0],
-          lastName: lastName || '',
-          profileImageUrl: '',
-          subscriptionTier: 'free',
-          subscriptionStatus: 'free',
-          battlesRemaining: 3,
-          lastBattleReset: new Date(),
-        });
-        
-        // Auto-login after registration
-        const sessionUser: any = { id: newUser.id };
-        sessionUser.claims = { sub: newUser.id, email: newUser.email };
-        sessionUser.expires_at = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365;
-        
-        req.login(sessionUser, (err: any) => {
-          if (err) return next(err);
-          res.json({ ok: true, user: { id: newUser.id, email: newUser.email } });
-        });
-      } catch (err) {
-        next(err);
-      }
-    });
-
-    // JSON login endpoint for local auth
-    app.post('/api/login', express.json(), (req, res, next) => {
-      passport.authenticate('local', (err: any, user: any, info: any) => {
-        if (err) return next(err);
-        if (!user) return res.status(401).json({ message: info?.message || 'Invalid credentials' });
-        req.login(user, (err2: any) => {
-          if (err2) return next(err2);
-          res.json({ ok: true, user });
-        });
-      })(req, res, next);
-    });
-
-    app.get('/api/logout', (req, res) => {
-      req.logout(() => res.json({ ok: true }));
-    });
-  } else {
+  if (authProvider !== 'local' && hasReplit) {
     // Replit OIDC provider
     const config = await getOidcConfig();
 
@@ -224,18 +223,29 @@ export async function setupAuth(app: Express) {
       passport.use(strategy);
     }
 
-    passport.serializeUser((user: Express.User, cb) => cb(null, user));
-    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
-
     app.get("/api/login", (req, res, next) => {
-      passport.authenticate(`replitauth:${req.hostname}`, {
+      const strategyName = `replitauth:${req.hostname}`;
+      const hasStrategy = (passport as any)._strategy?.(strategyName);
+
+      if (!hasStrategy) {
+        return res.redirect("/login");
+      }
+
+      return passport.authenticate(strategyName, {
         prompt: "login consent",
         scope: ["openid", "email", "profile", "offline_access"],
       })(req, res, next);
     });
 
     app.get("/api/callback", (req, res, next) => {
-      passport.authenticate(`replitauth:${req.hostname}`, {
+      const strategyName = `replitauth:${req.hostname}`;
+      const hasStrategy = (passport as any)._strategy?.(strategyName);
+
+      if (!hasStrategy) {
+        return res.redirect("/login");
+      }
+
+      return passport.authenticate(strategyName, {
         successReturnToOrRedirect: "/",
         failureRedirect: "/api/login",
       })(req, res, next);
@@ -250,6 +260,10 @@ export async function setupAuth(app: Express) {
           }).href
         );
       });
+    });
+  } else {
+    app.get('/api/logout', (req, res) => {
+      req.logout(() => res.json({ ok: true }));
     });
   }
 }

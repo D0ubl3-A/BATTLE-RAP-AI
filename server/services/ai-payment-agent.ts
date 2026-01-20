@@ -13,6 +13,7 @@
 import { ArcBlockchainService } from "../arcBlockchain";
 import { storage } from "../storage";
 import { MONETIZATION_CONFIG } from "@shared/schema";
+import { walletService } from "./walletService";
 
 export interface VoiceCommandResult {
   success: boolean;
@@ -444,6 +445,18 @@ export class AIPaymentAgent {
     }
 
     try {
+      const rewardAmount = MONETIZATION_CONFIG.ARC_REWARDS.VOICE_COMMAND_REWARD;
+      const rewardsPoolBalance = await walletService.getRewardsPoolBalance();
+
+      if (parseFloat(rewardsPoolBalance) < parseFloat(rewardAmount)) {
+        return {
+          success: false,
+          action: 'reward',
+          message: 'Rewards pool is currently depleted. Please try again later.',
+          error: 'Rewards pool depleted',
+        };
+      }
+
       const rewardTx = await this.arcService.awardVoiceCommandReward(walletAddress, command);
       
       // Record transaction
@@ -451,7 +464,7 @@ export class AIPaymentAgent {
         userId,
         txHash: rewardTx.txHash,
         txType: 'voice_command',
-        amount: MONETIZATION_CONFIG.ARC_REWARDS.VOICE_COMMAND_REWARD,
+        amount: rewardAmount,
         fromAddress: this.arcService.getPlatformWalletAddress(),
         toAddress: walletAddress,
         status: rewardTx.status,
@@ -460,12 +473,20 @@ export class AIPaymentAgent {
         memo: `Voice command: ${command.substring(0, 50)}`
       });
 
+      await walletService.recordRewardsPayout(
+        rewardAmount,
+        `Arc voice command reward`,
+        { userId, commandPreview: command.substring(0, 50) },
+        userId,
+        rewardTx.txHash
+      );
+
       return {
         success: true,
         action: 'reward',
-        message: `Nice! You earned $${MONETIZATION_CONFIG.ARC_REWARDS.VOICE_COMMAND_REWARD} USDC for using voice commands!`,
+        message: `Nice! You earned $${rewardAmount} USDC for using voice commands!`,
         txHash: rewardTx.txHash,
-        data: { reward: MONETIZATION_CONFIG.ARC_REWARDS.VOICE_COMMAND_REWARD }
+        data: { reward: rewardAmount }
       };
     } catch (error) {
       console.error('Error awarding voice command reward:', error);

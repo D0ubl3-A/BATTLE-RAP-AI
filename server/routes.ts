@@ -4,7 +4,7 @@ import Stripe from "stripe";
 import { storage } from "./storage";
 import { ObjectStorageService } from "./objectStorage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { SUBSCRIPTION_TIERS, insertTournamentSchema, users, userProgress } from "@shared/schema";
+import { MONETIZATION_CONFIG, SUBSCRIPTION_TIERS, insertTournamentSchema, users, userProgress } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gt } from "drizzle-orm";
 import { groqService } from "./services/groq";
@@ -1291,6 +1291,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-time store credit purchase
+  app.post('/api/purchase-credits', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { creditAmount = 1000, paymentMethod = 'stripe' } = req.body;
+
+      const creditPackages = {
+        1000: { price: 100, description: '1,000 credits for $1.00' },
+        150000: { price: 10000, description: '150,000 credits for $100.00' },
+      };
+
+      if (!creditPackages[creditAmount as keyof typeof creditPackages]) {
+        const available = Object.keys(creditPackages).join(', ');
+        return res.status(400).json({
+          message: `Invalid credit amount. Available packages: ${available} credits`,
+        });
+      }
+
+      if (paymentMethod === 'cashapp') {
+        const packageInfo = creditPackages[creditAmount as keyof typeof creditPackages];
+        console.log(`💰 CashApp credit pack request: ${creditAmount} credits for $${(packageInfo.price/100).toFixed(2)} by user ${userId}`);
+
+        return res.json({
+          clientSecret: `cashapp_credits_cs_${Date.now()}_${userId}`,
+          amount: packageInfo.price,
+          description: packageInfo.description,
+        });
+      }
+
+      if (!stripe) {
+        return res.status(503).json({
+          message: 'Payment processing is currently unavailable. Please contact support.',
+        });
+      }
+
+      let user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      if (!user.email) {
+        throw new Error('No user email on file');
+      }
+
+      let customer;
+      if (user.stripeCustomerId) {
+        try {
+          customer = await stripe.customers.retrieve(user.stripeCustomerId);
+        } catch (error: any) {
+          if (error.code === 'resource_missing') {
+            console.log(`🔄 Customer not found in current mode, creating new customer...`);
+            customer = await stripe.customers.create({
+              email: user.email,
+              name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+            });
+
+            user = await storage.updateUserStripeInfo(userId, {
+              stripeCustomerId: customer.id,
+            });
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        customer = await stripe.customers.create({
+          email: user.email,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+        });
+
+        user = await storage.updateUserStripeInfo(userId, {
+          stripeCustomerId: customer.id,
+        });
+      }
+
+      const packageInfo = creditPackages[creditAmount as keyof typeof creditPackages];
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: packageInfo.price,
+        currency: 'usd',
+        customer: customer.id,
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+          userId,
+          creditAmount: creditAmount.toString(),
+          paymentMethod,
+          purchaseType: 'credits',
+        },
+        description: packageInfo.description,
+      });
+
+      console.log(`✅ Credit payment intent created: ${paymentIntent.id}`);
+
+      res.json({
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret,
+        amount: packageInfo.price,
+        creditAmount,
+      });
+    } catch (error: any) {
+      console.error('Credit purchase creation error:', error);
+      return res.status(400).json({ error: { message: error.message } });
+    }
+  });
+
   // Store credit balance route (like ThcaStore)
   app.get('/api/store-credit/balance', isAuthenticated, async (req: any, res) => {
     try {
@@ -1663,6 +1767,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               } else {
                 console.warn(`⚠️ Invalid battle pack data: userId=${userId}, battleCount=${battleCount}`);
+              }
+            }
+            // Check if this is a credit pack purchase
+            else if (paymentIntent.metadata?.creditAmount) {
+              const userId = paymentIntent.metadata.userId;
+              const creditAmount = parseFloat(paymentIntent.metadata.creditAmount);
+
+              if (userId && creditAmount) {
+                const user = await storage.getUser(userId);
+                if (user) {
+                  const currentCredit = parseFloat(user.storeCredit?.toString() || '0');
+                  const newBalance = (currentCredit + creditAmount).toFixed(2);
+                  await storage.updateUser(userId, { storeCredit: newBalance });
+                  console.log(`✅ Added ${creditAmount} credits to user ${userId} (Payment: ${paymentIntent.id})`);
+                } else {
+                  console.warn(`⚠️ Failed to add credits to user ${userId} - user not found`);
+                }
+              } else {
+                console.warn(`⚠️ Invalid credit pack data: userId=${userId}, creditAmount=${creditAmount}`);
               }
             }
 
@@ -2866,6 +2989,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`💰 User wallet: ${walletAddress.substring(0, 10)}...`);
 
+      const rewardAmount = MONETIZATION_CONFIG.ARC_REWARDS.BATTLE_WIN_USDC;
+      const rewardsPoolBalance = await walletService.getRewardsPoolBalance();
+
+      if (parseFloat(rewardsPoolBalance) < parseFloat(rewardAmount)) {
+        return res.status(409).json({
+          message: "Rewards pool is currently depleted. Please try again later.",
+        });
+      }
+
       // Award USDC for battle win
       const arcResult = await arcBlockchainService.awardBattleWinUSDC(walletAddress, battleId);
       
@@ -2880,7 +3012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         relatedBattleId: battleId,
         txHash: arcResult.txHash,
         txType: 'battle_reward',
-        amount: "0.10", // Battle win reward amount (0.1 USDC)
+        amount: rewardAmount,
         toAddress: walletAddress,
         fromAddress: arcBlockchainService.getPlatformWalletAddress(),
         status: 'confirmed',
@@ -2888,6 +3020,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gasUsedUSDC: arcResult.gasUsedUSDC,
         memo: `Battle win reward - User ${userId} defeated AI ${battle.aiCharacterName} with score ${battle.userScore}/${battle.aiScore}`
       });
+
+      await walletService.recordRewardsPayout(
+        rewardAmount,
+        `Arc battle win reward: ${battleId}`,
+        { battleId, userId },
+        userId,
+        arcResult.txHash
+      );
 
       // Update transaction confirmed timestamp after insert
       await storage.updateArcTransactionStatus(arcResult.txHash, 'confirmed', arcResult.confirmedAt);
@@ -2900,7 +3040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user) {
         const currentEarned = parseFloat(user.totalEarnedUSDC?.toString() || '0');
         await storage.updateUser(userId, { 
-          totalEarnedUSDC: (currentEarned + 0.10).toString() 
+          totalEarnedUSDC: (currentEarned + parseFloat(rewardAmount)).toString() 
         });
       }
 
@@ -2909,7 +3049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({
         success: true,
         reward: {
-          amountUSDC: "0.10",
+          amountUSDC: rewardAmount,
           txHash: arcResult.txHash,
           walletAddress,
           blockNumber: arcResult.blockNumber,
@@ -4623,6 +4763,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Determine user's placement (simplified - assumes user won)
       const place = 1; // You would determine this from bracket results
       const prizeAmount = tournament.firstPlacePrize || '0.00';
+
+      const rewardsPoolBalance = await walletService.getRewardsPoolBalance();
+      if (parseFloat(rewardsPoolBalance) < parseFloat(prizeAmount)) {
+        return res.status(409).json({
+          message: 'Rewards pool is currently depleted. Please try again later.',
+        });
+      }
       
       // Award prize
       const prizeTx = await arcBlockchainService.awardTournamentPrize(
@@ -4646,6 +4793,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         relatedTournamentId: tournamentId,
         memo: `Tournament ${place}${place === 1 ? 'st' : place === 2 ? 'nd' : 'rd'} place prize`
       });
+
+      await walletService.recordRewardsPayout(
+        prizeAmount,
+        `Arc tournament prize: ${tournamentId}`,
+        { tournamentId, userId, place },
+        userId,
+        prizeTx.txHash
+      );
       
       // Update user's total earnings
       const user = await storage.getUser(userId);
@@ -4806,13 +4961,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/ads/impression', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { campaignId, completed } = req.body;
+      const { campaignId } = req.body;
 
       if (!campaignId) {
         return res.status(400).json({ error: 'Campaign ID required' });
       }
 
-      const impression = await adsService.trackImpression(userId, campaignId, completed || false);
+      const impression = await adsService.trackImpression(userId, campaignId);
+
       res.json({ impression });
     } catch (error: any) {
       console.error('Error tracking ad impression:', error);
@@ -4841,6 +4997,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const result = await adsService.claimAdReward(userId, campaignId, updateUserCallback);
+      if (result.arcContributionUSDC) {
+        const campaign = adsService.getCampaignById(campaignId);
+        if (campaign) {
+          await walletService.recordRewardsFunding(
+            result.arcContributionUSDC,
+            `Ad revenue contribution: ${campaign.title}`,
+            { campaignId, userId }
+          );
+        }
+      }
       res.json(result);
     } catch (error: any) {
       console.error('Error claiming ad reward:', error);
