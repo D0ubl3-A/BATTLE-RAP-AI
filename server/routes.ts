@@ -763,7 +763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const skillRating = 1000 + (progress.level * 50);
 
       const entry = await storage.createMatchmakingEntry(userId, queueType, skillRating);
-      const opponentEntry = await storage.findRandomMatchmakingOpponent(userId, queueType);
+      const opponentEntry = await storage.reserveMatchmakingOpponent(userId, queueType);
 
       if (opponentEntry) {
         await storage.updateMatchmakingStatus(userId, 'matched', {

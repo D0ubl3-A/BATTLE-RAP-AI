@@ -186,6 +186,7 @@ export interface IStorage {
   // Matchmaking operations
   getUserMatchmakingQueue(userId: string): Promise<any | undefined>;
   findRandomMatchmakingOpponent(userId: string, queueType: string): Promise<any | undefined>;
+  reserveMatchmakingOpponent(userId: string, queueType: string): Promise<any | undefined>;
   createMatchmakingEntry(userId: string, queueType: string, skillRating: number): Promise<any>;
   removeMatchmakingEntry(userId: string): Promise<void>;
   updateMatchmakingStatus(userId: string, status: string, matchData?: any): Promise<any>;
@@ -1965,6 +1966,28 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return entry;
+  }
+
+  async reserveMatchmakingOpponent(userId: string, queueType: string): Promise<any | undefined> {
+    const opponentEntry = await this.findRandomMatchmakingOpponent(userId, queueType);
+    if (!opponentEntry) {
+      return undefined;
+    }
+
+    const [updated] = await db
+      .update(matchmakingQueue)
+      .set({
+        status: 'matched',
+        matchedWithUserId: userId,
+        matchedAt: new Date(),
+      })
+      .where(and(
+        eq(matchmakingQueue.userId, opponentEntry.userId),
+        eq(matchmakingQueue.status, 'waiting')
+      ))
+      .returning();
+
+    return updated;
   }
 
   async createMatchmakingEntry(userId: string, queueType: string, skillRating: number): Promise<any> {
